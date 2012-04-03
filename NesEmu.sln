@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "NesEmu", "NesEmu.vcxproj", "{07B92AB7-3664-413D-81AA-2C2C705D4294}"
+	ProjectSection(ProjectDependencies) = postProject
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2} = {43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Libs", "Libs", "{67C783BC-DF7C-42FE-B696-08489B4C38B0}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "App", "App", "{9EEC01AD-8259-4264-8D2B-A5C9F3594D45}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Core", "..\..\WinCore\WinCore.vcxproj", "{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}"
+EndProject
+Global
+	GlobalSection(TestCaseManagementSettings) = postSolution
+		CategoryFile = TMS.vsmdi
+	EndGlobalSection
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{07B92AB7-3664-413D-81AA-2C2C705D4294}.Debug|Win32.ActiveCfg = Debug|Win32
+		{07B92AB7-3664-413D-81AA-2C2C705D4294}.Debug|Win32.Build.0 = Debug|Win32
+		{07B92AB7-3664-413D-81AA-2C2C705D4294}.Debug|x64.ActiveCfg = Debug|x64
+		{07B92AB7-3664-413D-81AA-2C2C705D4294}.Debug|x64.Build.0 = Debug|x64
+		{07B92AB7-3664-413D-81AA-2C2C705D4294}.Release|Win32.ActiveCfg = Release|Win32
+		{07B92AB7-3664-413D-81AA-2C2C705D4294}.Release|Win32.Build.0 = Release|Win32
+		{07B92AB7-3664-413D-81AA-2C2C705D4294}.Release|x64.ActiveCfg = Release|x64
+		{07B92AB7-3664-413D-81AA-2C2C705D4294}.Release|x64.Build.0 = Release|x64
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}.Debug|Win32.ActiveCfg = Debug|Win32
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}.Debug|Win32.Build.0 = Debug|Win32
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}.Debug|x64.ActiveCfg = Debug|x64
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}.Debug|x64.Build.0 = Debug|x64
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}.Release|Win32.ActiveCfg = Release|Win32
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}.Release|Win32.Build.0 = Release|Win32
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}.Release|x64.ActiveCfg = Release|x64
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{07B92AB7-3664-413D-81AA-2C2C705D4294} = {9EEC01AD-8259-4264-8D2B-A5C9F3594D45}
+		{43AC74E9-A89D-4E31-8C01-FA2CCE27F5C2} = {67C783BC-DF7C-42FE-B696-08489B4C38B0}
+	EndGlobalSection
+EndGlobal

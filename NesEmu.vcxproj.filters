@@ -1,0 +1,133 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Code">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Code\windows">
+      <UniqueIdentifier>{0e5907ea-328a-43f8-944f-d0665d7d9cc0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Code\utilities">
+      <UniqueIdentifier>{dd321b8f-9531-4597-8ee9-b84f217b334f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Code\graphics">
+      <UniqueIdentifier>{f583c94c-683f-4ca6-9b67-5e4e5b40e794}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Code\ui">
+      <UniqueIdentifier>{8fca06ed-024d-4f63-9926-2c593bad333a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Code\math">
+      <UniqueIdentifier>{d8508d33-b92f-4aaa-bc18-9a3015f9f80f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Code\emulation">
+      <UniqueIdentifier>{7502ca94-38af-456f-988f-3f64373e51f2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Code\emulation\nes">
+      <UniqueIdentifier>{c74e436c-5eb8-4460-af6a-2f91e0f15a55}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Code\emulation\nes\dcpu">
+      <UniqueIdentifier>{22b3d7e2-1741-44fe-af16-331b858d85f0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Code\application.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\console.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\display_window.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\winmain.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\graphics\opengl.cpp">
+      <Filter>Code\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\emulation\nes\gamepak.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\emulation\nes\io.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\emulation\nes\cpu.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\emulation\nes\ppu.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\emulation\nes\nes.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\graphics\gdi.cpp">
+      <Filter>Code\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\graphics\eagle.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\graphics\HQ2x.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\sound\WaveOut.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\sound\wave_output.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\dialogs\options.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\emulation\nes\apu\apu.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Code\application.h">
+      <Filter>Code</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\display_window.h">
+      <Filter>Code</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\graphics\opengl.h">
+      <Filter>Code\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\emulation\nes\nes.h" />
+    <ClInclude Include="Code\emulation\nes\register_bit.h" />
+    <ClInclude Include="Code\emulation\nes\cpu.h" />
+    <ClInclude Include="Code\emulation\nes\ppu.h" />
+    <ClInclude Include="Code\emulation\nes\gamepak.h" />
+    <ClInclude Include="Code\graphics\gdi.h">
+      <Filter>Code\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\graphics\graphics.h" />
+    <ClInclude Include="Code\graphics\eagle.h" />
+    <ClInclude Include="Code\resource.h" />
+    <ClInclude Include="Code\sound\WaveOut.h" />
+    <ClInclude Include="Code\emulation\nes\mappers\mmc1.h" />
+    <ClInclude Include="Code\emulation\nes\mappers\mmc3.h" />
+    <ClInclude Include="Code\emulation\nes\mappers\unrom.h" />
+    <ClInclude Include="Code\emulation\nes\mappers\none.h" />
+    <ClInclude Include="Code\debug.h" />
+    <ClInclude Include="Code\emulation\nes\debug\cpu_debugger.h">
+      <Filter>Code</Filter>
+    </ClInclude>
+    <ClInclude Include="Code\sound\wave_output.h" />
+    <ClInclude Include="Code\dialogs\options.h" />
+    <ClInclude Include="Code\emulation\nes\mappers\aorom.h" />
+    <ClInclude Include="Code\emulation\nes\mappers\cnrom.h" />
+    <ClInclude Include="Code\utilities\ring_buffer.h" />
+    <ClInclude Include="Code\emulation\nes\apu\pulse.h" />
+    <ClInclude Include="Code\emulation\nes\apu\triangle.h" />
+    <ClInclude Include="Code\emulation\nes\apu\noise.h" />
+    <ClInclude Include="Code\emulation\nes\apu\dmc.h" />
+    <ClInclude Include="Code\emulation\nes\apu\apu.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Code\resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resource\Nintendo-NES.ico" />
+  </ItemGroup>
+</Project>
