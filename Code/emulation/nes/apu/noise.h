@@ -1,8 +1,9 @@
 struct Noise {
   static const uint16_t noise_periods[16];
   bool enabled;
-  int length_counter, linear_counter, address, envelope;
+  int temp_lc1,temp_lc2,length_counter, linear_counter, address, envelope;
   int sweep_delay, env_delay, wave_counter, hold, phase, level;
+  bool halt;
   union {
     uint8_t raw;
     struct {
@@ -33,6 +34,13 @@ struct Noise {
   bool count(int& v, int reset) { return --v < 0 ? (v=reset),true : false; }
 
   int Tick() {
+    halt = reg0.halt;
+	  if (temp_lc1)
+	  {
+		  if (length_counter == temp_lc2)
+			  length_counter = temp_lc1;
+		  temp_lc1 = 0;
+	  }
     if(enabled == false) return 0;//8;
     int wl = wl = noise_periods[ reg2.noise_frequency ];
 
@@ -49,7 +57,7 @@ struct Noise {
   void Clock(bool length_tick,bool envelope_tick) {
     // Length tick (all channels except DMC, but different disable bit for triangle wave)
     if(length_tick && length_counter
-      && !reg0.halt)
+      && !halt)
         length_counter -= 1;
 
     // Envelope tick (square and noise channels)

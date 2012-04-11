@@ -158,19 +158,19 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
     Misfire(r, r+Y);
     return r+Y;
   }
-
-
-
+  
   void InterruptVector(uint16_t int_addr) {
-    unsigned t=0xFF, c=0;
+    unsigned c=0;
+    unsigned t=0xFF;
     addr = int_addr;
     addr=MemReadAccess(c=addr); 
     addr+=256*MemReadAccess(wrap(c,c+1));
     tick();
-    t &= P.raw|(prev_op==0?0x30:0x20);// c = t;
+    P.raw |= 0x20;
+    //t &= P.raw|(prev_op==0?0x30:0x20);// c = t;
     Push16(PC);//+(op?-1:1));
     PC = addr;
-    Push(t);
+    Push(P.raw & 0xEF);
     //if (prev_op == 0) {
     //  P.Z = P.I = 0;
     //} else {

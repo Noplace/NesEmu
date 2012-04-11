@@ -129,7 +129,7 @@ void DisplayWindow::Init() {
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\apu_reset\\4017_timing.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\apu_reset\\4017_written.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\blargg_apu\\01.len_ctr.nes");
-  nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\blargg_apu\\08.irq_timing.nes");
+  nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\blargg_apu\\09.reset_timing.nes");
   
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\nes_saw\\square_scale.nes");
 

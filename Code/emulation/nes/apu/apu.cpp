@@ -122,21 +122,8 @@ int Apu::Initialize(Nes* nes) {
 }
 
 void Apu::Power() {
-
   last_4017_value = 0;
   Reset();
-  /*tick_counter = tick_table[0][0].ticks;
-  frame_step = 0;
-  frame_interrupt = false;
-  cycles = 0;
-  sequencer_mode = false;
-  interrupt_inhibit = true; 
-  for (int i =0;i<12;++i) {
-    //cpu->MemWriteAccess(0x4017,last_4017_value);
-   // ++cycles;
-    //++tick_counter;
-  }
-  sample_counter = 0;*/
 }
 
 void Apu::Reset() {
@@ -151,12 +138,12 @@ void Apu::Reset() {
   frame_interrupt = false;
   sequencer_mode = false;
   interrupt_inhibit = true; 
-  for (int i =0;i<12;++i) {
-    //cpu->MemWriteAccess(0x4017,last_4017_value);
-    //++cycles;
-    //++tick_counter;
-  }
   sample_counter = 0;
+  for (int i =0;i<10;++i) {
+    cpu->MemWriteAccess(0x4017,last_4017_value);
+    ++cycles;
+    ++tick_counter;
+  }
 }
 
 uint8_t Apu::Read() {
@@ -190,7 +177,9 @@ void Apu::Write(uint16_t address, uint8_t value) {
       square1.reg3.raw = value;
       square1.wave_length.high = square1.reg3.timer_high;
       if (square1.enabled == true) {
-        square1.length_counter = length_counters[square1.reg3.length_counter_init];
+        //square1.length_counter = length_counters[square1.reg3.length_counter_init];
+        square1.temp_lc1 = length_counters[square1.reg3.length_counter_init];
+        square1.temp_lc2 = square1.length_counter;
       }
       square1.env_delay = square1.reg0.nnnn;
       square1.envelope  = 15;
@@ -211,7 +200,9 @@ void Apu::Write(uint16_t address, uint8_t value) {
       square2.reg3.raw = value;
       square2.wave_length.high = square2.reg3.timer_high;
       if (square2.enabled == true) {
-        square2.length_counter = length_counters[square2.reg3.length_counter_init];
+        //square2.length_counter = length_counters[square2.reg3.length_counter_init];
+        square2.temp_lc1 = length_counters[square2.reg3.length_counter_init];
+        square2.temp_lc2 = square2.length_counter;
       }
       square2.env_delay = square2.reg0.nnnn;
       square2.envelope  = 15;
@@ -230,7 +221,9 @@ void Apu::Write(uint16_t address, uint8_t value) {
       triangle.reg3.raw = value;
       triangle.wave_length.high = triangle.reg3.timer_high;
       if(triangle.enabled==true) {
-        triangle.length_counter = length_counters[triangle.reg3.length_counter_init];
+        //triangle.length_counter = length_counters[triangle.reg3.length_counter_init];
+        triangle.temp_lc1 = length_counters[triangle.reg3.length_counter_init];
+        triangle.temp_lc2 = triangle.length_counter;
       }
       triangle.linear_counter = triangle.reg0.linear_counter_init;
       break;
@@ -244,7 +237,9 @@ void Apu::Write(uint16_t address, uint8_t value) {
     case 0x400F:
       noise.reg3.raw = value;
       if(noise.enabled==true) {
-        noise.length_counter = length_counters[noise.reg3.length_counter_init];
+        //noise.length_counter = length_counters[noise.reg3.length_counter_init];
+        noise.temp_lc1 = length_counters[noise.reg3.length_counter_init];
+        noise.temp_lc2 = noise.length_counter;
       }
       noise.env_delay      = noise.reg0.nnnn;
       noise.envelope       = 15;
@@ -318,7 +313,6 @@ void Apu::Tick() {
     noise.Clock(tick_line.length,tick_line.envelope);
 		if ((sequencer_mode == false) && ((frame_step == 3) || (frame_step == 4) || (frame_step == 5)) && !(interrupt_inhibit)) {
       frame_interrupt = true;
-      
     }
     if ( (frame_step ==  4) && frame_interrupt == true)
       cpu->RaiseIRQLine();
@@ -326,6 +320,7 @@ void Apu::Tick() {
     tick_counter = tick_table[sequencer_mode][++frame_step].ticks;
     frame_step = tick_table[sequencer_mode][frame_step].next_frame_step;
   }
+
 
   auto sindex = square1.Tick() + square2.Tick();
   auto square_out = square_table[sindex];

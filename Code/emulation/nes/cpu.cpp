@@ -147,7 +147,7 @@ void Cpu::Op() {
     nmi_edge_detected = true;
     InterruptVector(0xFFFA);
   } else if (enable_irq==true) {
-    enable_irq = false;
+    //enable_irq = false;
     InterruptVector(0xFFFE);
   }
 
