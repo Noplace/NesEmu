@@ -1,6 +1,5 @@
 #include "../nes.h"
 
-
 //2 modes,6 steps (2 extra for 4mode,1extra for 5mode),4 flags(length,sweep,linear,envelope)
 /*const Apu::TickLine Apu::tick_table[2][6]= {
   {
@@ -39,27 +38,51 @@ const Apu::TickLine Apu::tick_table[2][6]= {
     {37281,0, false, false, false, false}   
   }
 };*/
+
 //NTSC only
-const Apu::TickLine Apu::tick_table[2][7]= {
+const Apu::TickLine Apu::ntsc_tick_table[2][7]= {
   {
-    {7459,1, false, false, true , true},
-    {7456,2, true , true , true , true},        
-    {7458,3, false, false, true , true},
-    {7457,4, false, false, false , false},
-    {1,5   , true , true , true, true},
-    {1,6   , false, false, false, false},
-    {7457,0, false, false, false, false}
+    {7459U,0, false, false, true , true },
+    {7456U,1, true , true , true , true },        
+    {7458U,2, false, false, true , true },
+    {7457U,3, false, false, false, false},
+    {   1U,4, true , true , true , true },
+    {   1U,5, false, false, false, false},
+    {7457U,0, false, false, false, false}
   },
   {
-    {1,1, true , true , true , true},
-    {7458,2, false, false, true , true},
-    {7456,3, true , true , true , true},        
-    {7458,4, false, false, true , true},
-    {7456,5, false, false, false, false},
-    {7454,0, false, false, false, false},
+    {   1U,0, true , true , true , true },
+    {7458U,1, false, false, true , true },
+    {7456U,2, true , true , true , true },        
+    {7458U,3, false, false, true , true },
+    {7456U,4, false, false, false, false},
+    {7454U,0, false, false, false, false},
     {}
   }
 };
+
+const Apu::TickLine Apu::pal_tick_table[2][7]= {
+  {
+    {8315U,0, false, false, true , true },
+    {8314U,1, true , true , true , true },        
+    {8312U,2, false, false, true , true },
+    {8313U,3, false, false, false, false},
+    {   1U,4, true , true , true , true },
+    {   1U,5, false, false, false, false},
+    {8313U,0, false, false, false, false}
+  },
+  {
+    {   1U,0, true , true , true , true },
+    {8314U,1, false, false, true , true },
+    {8314U,2, true , true , true , true },        
+    {8312U,3, false, false, true , true },
+    {8314U,4, false, false, false, false},
+    {8312U,0, false, false, false, false},
+    {}
+  }
+};
+
+
 
 const uint8_t Apu::length_counters[32] = {
   10 , 254, 20,  2, 40,  4, 80,  6,
@@ -71,8 +94,9 @@ const uint8_t Apu::length_counters[32] = {
 const uint16_t Noise::noise_periods[16] = { 2,4,8,16,32,48,64,80,101,127,190,254,381,508,1017,2034 };
 const uint16_t DMC::periods[16] = { 428,380,340,320,286,254,226,214,190,160,142,128,106,84,72,54 };
 
-Apu::Apu() : Component() , cpu(nullptr),cpu_cycles_ptr(nullptr),frame_step(0) {
-
+Apu::Apu() : Component() , cpu(nullptr),frame_step(0) {
+  tick_table[0] = ntsc_tick_table[0];
+  tick_table[1] = ntsc_tick_table[1];
 }
 
 Apu::~Apu() {
@@ -91,47 +115,48 @@ int Apu::Initialize(Nes* nes) {
   for (int i=1;i<256;++i) {
     tri_table[i] = 163.67 / ((24329.0 / double(i)) + 100);
   }
-  write_sideeffect_counter = 0;
-  cpu_cycles_ptr = &nes_->cpu().cycles;
   cpu = &nes_->cpu();
   frame_step = 0;
-  cycles = tick_table[0][0].step_cycle;
+  tick_counter = tick_table[0][0].ticks;
   return S_OK;
 }
 
 void Apu::Power() {
+
+  last_4017_value = 0;
+  Reset();
+  /*tick_counter = tick_table[0][0].ticks;
+  frame_step = 0;
+  frame_interrupt = false;
+  cycles = 0;
+  sequencer_mode = false;
+  interrupt_inhibit = true; 
+  for (int i =0;i<12;++i) {
+    //cpu->MemWriteAccess(0x4017,last_4017_value);
+   // ++cycles;
+    //++tick_counter;
+  }
+  sample_counter = 0;*/
+}
+
+void Apu::Reset() {
   memset(&square1,0,sizeof(square1));
   memset(&square2,0,sizeof(square2));
   memset(&triangle,0,sizeof(triangle));
   memset(&noise,0,sizeof(noise));
   memset(&dmc,0,sizeof(dmc));
-  last_4017_value = 0;
-  cycles = 0;
-  cycles = tick_table[0][0].step_cycle;
+  tick_counter = tick_table[0][0].ticks;
   frame_step = 0;
-  frame_interrupt = false;
-  write_sideeffect_counter = 0;
-  sequencer_mode = false;
-  interrupt_inhibit = true; 
-  cpu->MemWriteAccess(0x4017,last_4017_value);
-  OnSettingsChanged();
-}
-
-void Apu::Reset() {
-  square1.enabled = false;
-  square2.enabled = false;
-  triangle.enabled = false;
-  noise.enabled = false;
-  dmc.enabled = false;
-  dmc.irq = false;
-  write_sideeffect_counter = 0;
   cycles = 0;
-  frame_step = 0;
   frame_interrupt = false;
   sequencer_mode = false;
   interrupt_inhibit = true; 
-  cpu->MemWriteAccess(0x4017,last_4017_value);
-  OnSettingsChanged();
+  for (int i =0;i<12;++i) {
+    //cpu->MemWriteAccess(0x4017,last_4017_value);
+    //++cycles;
+    //++tick_counter;
+  }
+  sample_counter = 0;
 }
 
 uint8_t Apu::Read() {
@@ -145,7 +170,7 @@ uint8_t Apu::Read() {
   res |= 0x80*dmc.irq;
   frame_interrupt = false;
   dmc.irq = false;
-  cpu->enable_irq = false;
+  cpu->LowerIRQLine();
   return res;
 }
 
@@ -257,6 +282,7 @@ void Apu::Write(uint16_t address, uint8_t value) {
         dmc.length_counter = dmc.sample_length*16 + 1;
 
       dmc.irq = false;
+      
       break;
 
     case 0x4017:
@@ -266,87 +292,25 @@ void Apu::Write(uint16_t address, uint8_t value) {
       last_4017_value = value;
       interrupt_inhibit = value & 0x40;
       sequencer_mode  = value & 0x80;
-      write_sideeffect_counter = 2-(*cpu_cycles_ptr % 2);
-      
-      if (sequencer_mode == true) {
-        /*square1.Clock(true,false,false);
-        square2.Clock(true,false,false);
-        triangle.Clock(true,false);
-        noise.Clock(true,false);*/
-      } else {
-
-      }
-      cycles = tick_table[sequencer_mode][0].step_cycle;
+      tick_counter = tick_table[sequencer_mode][0].ticks;
       frame_step = 0;
-      if ((*cpu_cycles_ptr)&1) {
-        cycles+=2;
+      if (cycles & 1) {
+        tick_counter+=2;
       } else {
-        ++cycles;
+        ++tick_counter;
       }
-
-
       if(interrupt_inhibit == true)  {
-        frame_interrupt = dmc.irq = false;//DMC_IRQ = false;
+        frame_interrupt = dmc.irq = false;
         cpu->LowerIRQLine();
-        //cpu->enable_irq = frame_interrupt = !interrupt_inhibit;
-        //cpu->irq_line = cpu->enable_irq && !cpu->P.I;
       }
 
       break;
   }
 }
 // Invoked at CPU's rate.
-void Apu::Tick(double dt) {
-  /*if (write_sideeffect_counter) {
-    if (!--write_sideeffect_counter) {
-      cycles = 0;
-      frame_step = sequencer_mode == false?0:1;
-    }
-  }*/
-  /*if (cycles++ == 7457) {
-    auto& tick_line =  tick_table[sequencer_mode][frame_step];
-
-    if (sequencer_mode == false && frame_step==4) { // && cycles >= 14914 && cycles <= 14915) {
-      cpu->enable_irq = frame_interrupt = !interrupt_inhibit;
-    }
-
-    square1.Clock(tick_line.length,tick_line.sweep,tick_line.envelope);
-    square2.Clock(tick_line.length,tick_line.sweep,tick_line.envelope);
-    triangle.Clock(tick_line.length,tick_line.linear);
-    noise.Clock(tick_line.length,tick_line.envelope);
-
-    frame_step = tick_line.next_frame_step;
-    //if (frame_step == 0) {
-    //  cycles = 0;
-    //}
-    cycles = 0;
-  }*/
-
-  /*
-  //if ((*cpu_cycles_ptr % 2) == 1) { //every other cpu cycle 
-    auto& tick_line =  tick_table[sequencer_mode][frame_step];
-    if (sequencer_mode == false && cycles >= 29830 && cycles <= 29832) {
-      cpu->enable_irq = frame_interrupt = !interrupt_inhibit;
-      cpu->irq_line = cpu->enable_irq && !cpu->P.I;
-    }
-    if (tick_line.step_cycle == cycles) {
-      square1.Clock(tick_line.length,tick_line.sweep,tick_line.envelope);
-      square2.Clock(tick_line.length,tick_line.sweep,tick_line.envelope);
-      triangle.Clock(tick_line.length,tick_line.linear);
-      noise.Clock(tick_line.length,tick_line.envelope);
-      frame_step = tick_line.next_frame_step;
-      if (frame_step == 0) {
-        if (sequencer_mode == false) 
-          cycles -= 29830;
-        else
-          cycles -= 37282;
-      }
-    }
-    ++cycles;
-
-  //}*/
-
-  if (!--cycles) {
+void Apu::Tick() {
+  ++cycles;
+  if (!--tick_counter) {
     auto& tick_line =  tick_table[sequencer_mode][frame_step];
     square1.Clock(tick_line.length,tick_line.sweep,tick_line.envelope);
     square2.Clock(tick_line.length,tick_line.sweep,tick_line.envelope);
@@ -354,31 +318,25 @@ void Apu::Tick(double dt) {
     noise.Clock(tick_line.length,tick_line.envelope);
 		if ((sequencer_mode == false) && ((frame_step == 3) || (frame_step == 4) || (frame_step == 5)) && !(interrupt_inhibit)) {
       frame_interrupt = true;
-      //cpu->enable_irq = frame_interrupt = true;
-      //cpu->irq_line = cpu->enable_irq && !cpu->P.I;
+      
+    }
+    if ( (frame_step ==  4) && frame_interrupt == true)
       cpu->RaiseIRQLine();
-    }
 
-    //frame_step = tick_table[sequencer_mode][frame_step].next_frame_step;
-    cycles = tick_table[sequencer_mode][++frame_step].step_cycle;
-
-    if (sequencer_mode == true) {
-			if (frame_step == 5)
-				frame_step = 0;
-    } else {
-			if (frame_step == 6)
-				frame_step = 0;
-    }
+    tick_counter = tick_table[sequencer_mode][++frame_step].ticks;
+    frame_step = tick_table[sequencer_mode][frame_step].next_frame_step;
   }
 
   auto sindex = square1.Tick() + square2.Tick();
   auto square_out = square_table[sindex];
     
-  auto tindex = dmc.Tick([&](uint16_t address){ return cpu->MemReadAccess(address);  },cpu->enable_irq,interrupt_inhibit) + 
+  auto tindex = dmc.Tick([&](uint16_t address){ return cpu->MemReadAccess(address);  },interrupt_inhibit) + 
     3*triangle.Tick() + 2*noise.Tick();
+  if (dmc.irq == true)
+    cpu->RaiseIRQLine();
   auto tri_out = tri_table[tindex];
 
-  sample_hold = (square_out+tri_out) * 32767.0 ;
+  sample_hold = (square_out+tri_out) * 32767.0 ;//*2147483647.0;
 
   auto avg_sample = [](RingBuffer<double>& samples) -> double {
     double res = 0;
@@ -392,16 +350,26 @@ void Apu::Tick(double dt) {
   ++sample_counter;
   if (sample_counter >= sample_ratio) {
     auto sample = avg_sample(sample_hold);//lowpass_filter.calc(sample_hold);
-    short sbuf[2];
+    short sbuf[2]= {0,0};
+    //int sbuf2[2];
+    //sbuf2[0] = sbuf2[1] = int(sample);
     sbuf[0] = sbuf[1] = short(sample); //mono to stereo
     sample_counter -= sample_ratio;   
-    IO::writeAudioBlock(sbuf,2*sizeof(sbuf[0]));
+    IO::writeAudioBlock(sbuf,4);
   }
-
 }
 
 
 void Apu::OnSettingsChanged() {
+  if (mode_ == NTSC) {
+    tick_table[0] = ntsc_tick_table[0];
+    tick_table[1] = ntsc_tick_table[1];
+  }
+  if (mode_ == PAL) {
+    tick_table[0] = pal_tick_table[0];
+    tick_table[1] = pal_tick_table[1];
+  }
+
   sample_counter = 0;
   sample_ratio = uint32_t(nes_->settings.cpu_freq_hz / 44100);
   sample_hold.Resize(sample_ratio);

@@ -24,9 +24,13 @@ class Ppu : public Component /* Picture Processing Unit */
   uint8_t Read(uint16_t address);
   void Write(uint16_t address,uint8_t data);
   void Tick();
+  void OnSettingsChanged();
   bool offset_toggle() { return offset_toggle_; }
   int open_bus() { return open_bus_; }
+  uint16_t address() { return vaddr.raw; }
  protected:
+  typedef void (Ppu::*TickFunction)();
+  TickFunction tick_array[3];
   // Raw memory data as read&written by the game
   uint8_t palette[32], OAM[256];
   // Decoded sprite information, used & changed during each scanline
@@ -55,9 +59,11 @@ class Ppu : public Component /* Picture Processing Unit */
   int read_buffer, open_bus_, open_bus_decay_timer;
   bool even_odd_toggle, offset_toggle_;
 
-
+  uint64_t cycles;
   /* Memory mapping: Convert PPU memory address into a reference to relevant data */
   uint8_t& mmap(int i);
   void rendering_tick();
   void render_pixel();
+  void TickNTSC();
+  void TickPAL();
 };

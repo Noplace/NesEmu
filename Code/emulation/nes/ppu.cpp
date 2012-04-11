@@ -6,7 +6,9 @@ extern uint32_t palette1[64];
 Ppu ppu;
 
 Ppu::Ppu() : Component() {
-
+  tick_array[0] = &Ppu::TickNTSC;
+  tick_array[1] = &Ppu::TickPAL;
+  tick_array[2] = nullptr;
 }
 
 Ppu::~Ppu() {
@@ -29,6 +31,7 @@ int Ppu::Initialize(Nes* nes) {
 }
 
 void Ppu::Power() {
+  cycles = 0;
   reg.sysctrl = 0;
   reg.dispctrl = reg.dispctrl & 0x6;
   reg.status = reg.status & 0x1F;
@@ -47,6 +50,7 @@ void Ppu::Power() {
 }
 
 void Ppu::Reset() {
+  cycles = 0;
   reg.sysctrl = 0;
   reg.dispctrl = reg.dispctrl & 0x6;
   reg.status = reg.status & 0x1F;
@@ -63,7 +67,7 @@ void Ppu::Reset() {
 inline uint8_t& Ppu::mmap(int i)  {
   i &= 0x3FFF;
   if(i >= 0x3F00) { if(i%4==0) i &= 0x0F; return palette[i & 0x1F]; }
-  nes_->gamepak().mapper->Tick(0x10000|i);
+
   if(i < 0x2000) 
     return nes_->gamepak().chr_banks[i>>10][i&0x3FF];
   return nes_->gamepak().Nta[(i>>10)&3][i&0x3FF];
@@ -123,8 +127,8 @@ void Ppu::Write(uint16_t address,uint8_t data) {
         case 6: 
             if(offset_toggle_) { scroll.vaddrlo = data; 
               vaddr.raw = (unsigned) scroll.raw; 
-              uint16_t addr = vaddr.raw;
-              nes_->gamepak().mapper->Tick(addr);
+              //uint16_t addr = vaddr.raw;
+              //nes_->gamepak().mapper->Tick(addr);
             }
             else              { 
               scroll.vaddrhi = data & 0x3F; 
@@ -166,7 +170,7 @@ void Ppu::rendering_tick()
                             sprrenpos = 0; }
             break;
         case 1:
-            if(x == 337 && scanline == -1 && even_odd_toggle && reg.ShowBG) scanline_end = 340;
+            if(x == 337 && scanline == -1 && even_odd_toggle && reg.ShowBG && (mode_==NTSC)) scanline_end = 340;
             // Name table access
             pat_addr = 0x1000*reg.BGaddr + 16*mmap(ioaddr) + vaddr.yfine;
             if(!tile_decode_mode) break;
@@ -329,9 +333,11 @@ void Ppu::render_pixel()
 // 340 or 341 pixels long, alternating each frame.
 // In all other situations the scanline is 341 pixels long.
 // Thus, it takes 89341 or 89342 PPU::tick() calls to render 1 frame.
-void Ppu::Tick()
-{
+void Ppu::Tick() {
+  (this->*(tick_array[mode_]))();
+}
 
+void Ppu::TickNTSC() {
   for (auto i=0;i<3;++i) {
     //Set/clear vblank where needed
     switch(VBlankState)  {
@@ -350,6 +356,7 @@ void Ppu::Tick()
     if(scanline < 240) {
         /* Process graphics for this cycle */
         if(reg.ShowBGSP) {
+          nes_->gamepak().mapper->Tick(0);
           rendering_tick();
         }
         if(scanline >= 0 && x < 256) 
@@ -389,4 +396,66 @@ void Ppu::Tick()
       }
     }
   }
+}
+
+void Ppu::TickPAL() {
+  int tick_count = 3;
+  if ((nes_->cpu().cycles % 5)==4)
+    ++tick_count;
+
+  for (auto i=0;i<tick_count;++i) {
+    //Set/clear vblank where needed
+    switch(VBlankState)  {
+        case -5: reg.status = 0;  break;
+        case 2: reg.InVBlank = true; break;
+        case 0: {
+          nes_->cpu().nmi = reg.InVBlank && reg.NMIenabled; 
+
+                }
+          break;
+    }
+    if(VBlankState != 0) VBlankState += (VBlankState < 0 ? 1 : -1);
+    if(open_bus_decay_timer) if(!--open_bus_decay_timer) open_bus_ = 0;
+
+    // Graphics processing scanline?
+    if(scanline < 240) {
+        /* Process graphics for this cycle */
+        if(reg.ShowBGSP) {
+          nes_->gamepak().mapper->Tick(0);
+          rendering_tick();
+        }
+        if(scanline >= 0 && x < 256) 
+          render_pixel();
+    }
+
+    if(++x == scanline_end) {
+      // Begin new scanline
+      //IO::FlushScanline(scanline);
+      if(scanline == 239) {
+        nes_->on_render();
+      }
+      scanline_end = 341;
+      x            = 0;
+      // Does something special happen on the new scanline?
+      switch(scanline += 1) {
+        case 311: // Begin of rendering
+          scanline = -1; // pre-render line
+          even_odd_toggle = !even_odd_toggle;
+          // Clear vblank flag
+          VBlankState = -5;
+          break;
+
+        case 241: // Begin of vertical blanking
+          nes_->on_vertical_blank();
+          VBlankState = 2;
+          
+          break;
+      }
+    }
+    ++cycles;
+  }
+}
+
+void Ppu::OnSettingsChanged() {
+
 }

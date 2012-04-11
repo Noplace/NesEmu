@@ -70,16 +70,22 @@
     <ClCompile Include="Code\graphics\HQ2x.cpp">
       <Filter>Code</Filter>
     </ClCompile>
-    <ClCompile Include="Code\sound\WaveOut.cpp">
-      <Filter>Code</Filter>
-    </ClCompile>
-    <ClCompile Include="Code\sound\wave_output.cpp">
-      <Filter>Code</Filter>
-    </ClCompile>
     <ClCompile Include="Code\dialogs\options.cpp">
       <Filter>Code</Filter>
     </ClCompile>
     <ClCompile Include="Code\emulation\nes\apu\apu.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\audio\ds.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\audio\wasapi.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\audio\wave_output.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\audio\WaveOut.cpp">
       <Filter>Code</Filter>
     </ClCompile>
   </ItemGroup>
@@ -104,7 +110,6 @@
     <ClInclude Include="Code\graphics\graphics.h" />
     <ClInclude Include="Code\graphics\eagle.h" />
     <ClInclude Include="Code\resource.h" />
-    <ClInclude Include="Code\sound\WaveOut.h" />
     <ClInclude Include="Code\emulation\nes\mappers\mmc1.h" />
     <ClInclude Include="Code\emulation\nes\mappers\mmc3.h" />
     <ClInclude Include="Code\emulation\nes\mappers\unrom.h" />
@@ -113,7 +118,6 @@
     <ClInclude Include="Code\emulation\nes\debug\cpu_debugger.h">
       <Filter>Code</Filter>
     </ClInclude>
-    <ClInclude Include="Code\sound\wave_output.h" />
     <ClInclude Include="Code\dialogs\options.h" />
     <ClInclude Include="Code\emulation\nes\mappers\aorom.h" />
     <ClInclude Include="Code\emulation\nes\mappers\cnrom.h" />
@@ -123,6 +127,12 @@
     <ClInclude Include="Code\emulation\nes\apu\noise.h" />
     <ClInclude Include="Code\emulation\nes\apu\dmc.h" />
     <ClInclude Include="Code\emulation\nes\apu\apu.h" />
+    <ClInclude Include="Code\audio\ds.h" />
+    <ClInclude Include="Code\audio\wasapi.h" />
+    <ClInclude Include="Code\audio\wave_output.h" />
+    <ClInclude Include="Code\audio\WaveOut.h" />
+    <ClInclude Include="Code\audio\audio_interface.h" />
+    <ClInclude Include="Code\audio\audio.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Code\resource.rc" />

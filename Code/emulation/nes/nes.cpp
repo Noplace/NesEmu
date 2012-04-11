@@ -8,8 +8,9 @@ Nes::Nes() : frame_buffer(nullptr) , init_(false),on(false),pause(false) {
   //default settings
   //NTSC = 6*(39375000/11) / 16 
   //#define NTSC_CPU_HZ (6*(39375000.0/11) / 16)
-  settings.cpu_freq_hz = 1789772.7272727272727272727272727;//1789800.0; NTSC
+  //settings.cpu_freq_hz = 1789772.7272727272727272727272727;//1789800.0; NTSC
   //settings.cpu_freq_hz = 1662607.03125;//1789800.0; PAL
+  settings.machine_mode = NTSC;
 }
 
 Nes::~Nes() {
@@ -39,8 +40,7 @@ void Nes::Initialize() {
   cpu_.Initialize(this);
   apu_.Initialize(this);
 
-
-  OnSettingsChanged();
+  set_mode(settings.machine_mode);
 }
 
 void Nes::Deinitialize() {

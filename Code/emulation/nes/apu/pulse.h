@@ -2,6 +2,7 @@ struct Pulse {
   bool enabled;
   int length_counter, envelope;
   int sweep_delay, env_delay, wave_counter, phase, level;
+  bool halt;
   union {
     uint8_t raw;
     struct {
@@ -36,12 +37,13 @@ struct Pulse {
       unsigned high:3;
     };
   } wave_length;
+  
   bool count(int& v, int reset) { return --v < 0 ? (v=reset),true : false; }
   int Tick() {
     if(enabled==false) 
       return 0;//8;
 
-    int wl = (wave_length.raw+1) * 2;
+    int wl = (wave_length.raw+1)*2;
 
     int volume = length_counter ? reg0.constant_volume_flag ? reg0.nnnn : envelope : 0;
     // Sample may change at wavelen intervals.
@@ -58,10 +60,10 @@ struct Pulse {
     int wl = wave_length.raw;
 
     // Length tick (all channels except DMC, but different disable bit for triangle wave)
-    unsigned co2 = reg0.halt;
+    unsigned co2 = halt;
     if(length_tick && length_counter && !(co2))
             length_counter -= 1;
-           
+    halt = reg0.halt;       
 
     // Sweep tick (square waves only)
     if(sweep_tick && count(sweep_delay, reg1.sweep_rate))

@@ -1,6 +1,8 @@
 
 #include "nes.h"
-#include "../../sound/wave_output.h"
+//#include "../../sound/wave_output.h"
+//#include "../../sound/wasapi.h"
+#include "../../audio/audio.h"
 //#include "../../sound/WaveOut.h"
 
 float pal_mul[7][3] = {
@@ -104,12 +106,13 @@ uint32_t palette1[64] = {
 namespace IO
 {
 
-
+  HWND window_handle;
 
   Joystick joy1,joy2;
   //HWAVEOUT waveout;
   //CWaveOut wave;
-  WaveOutput wave;
+  //WaveOutput wave;
+  audio::DirectSound ds_audio;
 
   void Init() {
     memset(&joy1,0,sizeof(joy1));
@@ -129,15 +132,20 @@ namespace IO
     wave.SetChannel(2);
     wave.SetSample(44100);
     wave.StartPlay();*/
-    wave.Initialize();
-    wave.Open(44100,2,16,0,0);
+    //wave.Initialize();
+    //wave.Open(44100,2,16,0,0);
+    //WASAPI_Initialize(44100,2,16);
+    ds_audio.set_window_handle(window_handle);
+    ds_audio.Initialize(44100,2,16);
   }
 
   void Deinit() {
     //waveOutClose(waveout);
     //wave.StopPlay();
-    wave.Close();
-    wave.Deinitialize();
+    //wave.Close();
+    //wave.Deinitialize();
+    //WASAPI_Deinitialize();
+    ds_audio.Deinitialize();
   }
 
 
@@ -152,7 +160,10 @@ namespace IO
     while(waveOutUnprepareHeader(waveout,&header,sizeof(WAVEHDR)) == WAVERR_STILLPLAYING)
       Sleep(10);*/
     //wave.Play((char*)block,size);
-    wave.Write((int8_t*)block,size);
+    //wave.Write((int8_t*)block,size);
+    //WASAPI_WriteData(block,size);
+    ds_audio.Write(block,size);
+
   }
 
     unsigned MakeRGBcolor(unsigned pixel) 

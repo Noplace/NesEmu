@@ -12,7 +12,7 @@ struct DMC {
   bool irq;
   bool count(int& v, int reset) { return --v < 0 ? (v=reset),true : false; }
   template <typename MemRead>
-  int Tick(MemRead& memRead,bool& cpu_enable_irq,bool disable_irq) {
+  int Tick(MemRead& memRead,bool disable_irq) {
     if (enabled == false) return 0;//64
     int wl = (wave_length+1);
     
@@ -39,7 +39,7 @@ struct DMC {
       }
       else { // Otherwise, disable channel or issue IRQ
         if (irq_enable == true) {
-          cpu_enable_irq = irq = true;
+          irq = true;
         }
         enabled = irq_enable && irq;
       }

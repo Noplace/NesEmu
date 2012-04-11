@@ -14,6 +14,12 @@
 #include "register_bit.h"
 #include "../../utilities/ring_buffer.h"
 
+enum MachineMode{
+  NTSC = 0,
+  PAL = 1,
+  Dendy = 2
+};
+
 class Nes;
 class Component {
  public:
@@ -26,8 +32,10 @@ class Component {
   virtual void OnSettingsChanged() {
   }
   Nes& nes() { return *nes_; }
+  void set_mode(MachineMode mode) { mode_ = mode; }
  protected:
   Nes* nes_;
+  MachineMode mode_;
   bool init_;
 };
 
@@ -62,6 +70,7 @@ class Nes {
  public:
   struct Settings {
     double cpu_freq_hz;
+    MachineMode machine_mode;
   }settings;
   double time_acc_;
   core::LogManager log;
@@ -98,6 +107,18 @@ class Nes {
     cpu_.OnSettingsChanged();
     ppu_.OnSettingsChanged();
     apu_.OnSettingsChanged();
+  }
+  void set_mode(MachineMode mode) {
+    if (mode == NTSC) {
+      settings.cpu_freq_hz = 1789772.72727;
+    } else if (mode == PAL) {
+      settings.cpu_freq_hz = 1662607.03125;
+    }
+    gamepak_.set_mode(mode);
+    cpu_.set_mode(mode);
+    ppu_.set_mode(mode);
+    apu_.set_mode(mode);
+    OnSettingsChanged();
   }
  protected:
   bool init_;

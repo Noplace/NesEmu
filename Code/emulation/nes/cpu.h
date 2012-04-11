@@ -21,10 +21,19 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
 {
  friend CpuDebugger;
  public:
+  struct {
+    uint16_t location;
+    uint8_t delay;
+  } iq[20];
+  int iq_count;
+  void push_iq(uint16_t l,uint8_t d) {
+    iq[iq_count].location = l;
+    iq[iq_count].delay = d;
+    ++iq_count;
+  }
+
   uint8_t* RAM;
   bool reset, nmi, nmi_edge_detected;
-  bool enable_irq,irq_line;
-  bool disable_op_read;
   // CPU registers:
   uint16_t PC;
   uint8_t A,X,Y,S;
@@ -69,10 +78,9 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   void Power();
   void Reset();
   void tick();
+  void Op();
   uint8_t MemReadAccess(uint16_t addr);
   void MemWriteAccess(uint16_t address, uint8_t value);
-
-  void Op();
   void Irq() {
     _102();
   }
@@ -81,25 +89,26 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
     nmi_edge_detected = false;
   }
   void RaiseIRQLine() {
-    enable_irq = true;
-    irq_line = enable_irq && !P.I;
+    irq_line = true;
   }
   void LowerIRQLine() {
-    enable_irq = false;
     irq_line = false;
   }
  protected:
   typedef uint16_t (Cpu::*FetchAddressMode)(uint16_t);
   typedef void (Cpu::*Instruction)();
   static AddressingModes addressing_modes[256];
-  unsigned int op,prev_op;
-  int delay_irq;
-  FetchAddressMode fetch_address[13];
   Instruction instructions[0x108];
-    
+  FetchAddressMode fetch_address[13];
+  unsigned int op,prev_op;
+  bool enable_irq,irq_line;
+
+  void FakeIncrementS() { tick(); }
   uint16_t wrap(uint16_t oldaddr, uint16_t newaddr)  { return (oldaddr & 0xFF00) + uint8_t(newaddr); }
   void Misfire(uint16_t old, uint16_t addr) { uint16_t q = wrap(old, addr); if(q != addr) MemReadAccess(q); }
-  uint8_t   Pop()        { return MemReadAccess(0x100 | uint8_t(++S)); }
+  uint8_t   Pop()        { 
+    return MemReadAccess(0x100 | ((++S)&0xFF)); 
+  }
   uint16_t   Pop16()        { return Pop() | (Pop()<<8); }
   void Push(uint8_t v)   { MemWriteAccess(0x100 | uint8_t(S--), v); }
   void Push16(uint16_t data) {
@@ -114,27 +123,52 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   }
   
   uint16_t FetchAddressAbsolute(uint16_t& address) {
-    auto r = (MemReadAccess(address++) & 0xFF);
+    uint16_t r = (MemReadAccess(address++) & 0xFF);
     r += (MemReadAccess(address++) << 8);
     return r;
   }
 
   uint16_t FetchAddressAbsoluteX(uint16_t& address) {
-    auto r = (MemReadAccess(address++) & 0xFF);
+    uint16_t r = (MemReadAccess(address++) & 0xFF);
     r=uint8_t(r); 
     r+=(MemReadAccess(address++) << 8);
     MemReadAccess(wrap(r, r+X));
     return r+X;
   }
 
+  uint16_t FetchAddressZeroPageX(uint16_t& address) {
+    uint16_t r = (MemReadAccess(address++) + X) & 0xFF;
+    tick();
+    return r;
+  }
+
+  uint16_t FetchAddressIndirectX(uint16_t& address) {
+    unsigned c = 0;
+    uint16_t r = (MemReadAccess(address++)+X) & 0xFF; 
+    tick();
+    r=MemReadAccess(c=r) | (MemReadAccess(wrap(c,c+1))<<8);
+    return r;
+  }
+
+  uint16_t FetchAddressIndirectY(uint16_t& address,bool misfire) {
+    uint16_t r = MemReadAccess(address++);
+    auto c = r;
+    r = MemReadAccess(c) | (MemReadAccess(wrap(c,c+1))<<8); 
+    //if (misfire==true)
+    Misfire(r, r+Y);
+    return r+Y;
+  }
+
+
+
   void InterruptVector(uint16_t int_addr) {
     unsigned t=0xFF, c=0;
     addr = int_addr;
     addr=MemReadAccess(c=addr); 
     addr+=256*MemReadAccess(wrap(c,c+1));
-    t &= P.raw|(prev_op==0?0x30:0x20);// c = t;
     tick();
-    Push16(PC+(op?-1:1));
+    t &= P.raw|(prev_op==0?0x30:0x20);// c = t;
+    Push16(PC);//+(op?-1:1));
     PC = addr;
     Push(t);
     //if (prev_op == 0) {
@@ -149,15 +183,15 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   void _002();
   void _003();
   void _004();
-  void ORA2();
+  void ORA_ZPG();
   void ASL1();
   void _007();
   void PHP();
-  void ORA3();
+  void ORA_IMM();
   void ASL2();
   void _00B();
   void _00C();
-  void ORA4();
+  void ORA_ABS();
   void ASL3();
   void _00F();
   void BPL();
@@ -165,15 +199,15 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   void _012();
   void _013();
   void _014();
-  void ORA6();
+  void ORA_ZPX();
   void ASL4();
   void _017();
   void CLC() ;
-  void ORA7();
+  void ORA_ABY();
   void _01A();
   void _01B();
   void _01C();
-  void ORA8();
+  void ORA_ABX();
   void ASL5();
   void _01F();
   void JSR_ABS();

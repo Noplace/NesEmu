@@ -9,6 +9,10 @@ void hq2x_filter_render(
 
 Nes* global_nes;
 
+  namespace IO {
+  extern HWND window_handle;
+  }
+
 namespace app {
 
 
@@ -76,7 +80,33 @@ void DisplayWindow::Init() {
     }
   });
 
-  //nes.Open("D:\\Personal\\Projects\\NesEmu\\mario.nes");
+  //auto a = glGetError();
+  //glPixelZoom(1, -1);
+  //a = glGetError();
+  //glRasterPos2i(0,0);
+  //a = glGetError();
+  glEnable( GL_TEXTURE_2D );
+  auto a = glGetError();
+  glGenTextures( 1, &texture );
+  a = glGetError();
+  glBindTexture( GL_TEXTURE_2D, texture );
+  glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+  glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+  
+  //settings setup
+  options.nes = &nes;
+  IO::window_handle = handle();
+  IO::Init();
+  ResetTiming();
+  
+  OnCommand(ID_VIDEO_STD256X240,0);
+  Center();
+  ShowWindow(handle(), SW_SHOW); 
+  UpdateWindow(handle()); 
+  
+  
+
+ //nes.Open("D:\\Personal\\Projects\\NesEmu\\mario.nes");
 
   //CPU Tests
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_reset\\ram_after_reset.nes");
@@ -89,6 +119,8 @@ void DisplayWindow::Init() {
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\instr_timing\\instr_timing.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\NEStress\\NEStress.NES");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_dummy_writes\\cpu_dummy_writes_ppumem.nes");
+  //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_flag_concurrency\\test_cpu_flag_concurrency.nes");
+  //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_exec_space\\test_cpu_exec_space_apu.nes");
   
 
 
@@ -112,33 +144,7 @@ void DisplayWindow::Init() {
   //MMC1
   //nes.Open("F:\\NESRen\\USA\\Legend of Zelda, The (U) (PRG 0).nes");
   //nes.Open("F:\\NESRen\\Translated\\Captain Tsubasa (J) [T-Eng].nes");
-
-  OnCommand(ID_VIDEO_STD256X240,0);
-  Center();
-  ShowWindow(handle(), SW_SHOW); 
-  UpdateWindow(handle()); 
-  
-  
-  //auto a = glGetError();
-  //glPixelZoom(1, -1);
-  //a = glGetError();
-  //glRasterPos2i(0,0);
-  //a = glGetError();
-  glEnable( GL_TEXTURE_2D );
-  auto a = glGetError();
-  glGenTextures( 1, &texture );
-  a = glGetError();
-  glBindTexture( GL_TEXTURE_2D, texture );
-  glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-  glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-  
-  //settings setup
-  options.nes = &nes;
-
-  IO::Init();
-  ResetTiming();
-
- 
+  OnCommand(ID_MODE_NTSC,0);
 }
 
 void DisplayWindow::ResetTiming() {
@@ -175,9 +181,9 @@ void DisplayWindow::Step() {
 
     char caption[256];
     //sprintf(caption,"Freq : %0.2f MHz",nes.frequency_mhz());
-    sprintf(caption,"CPS: %llu ",nes.cycles_per_second());
+    //sprintf(caption,"CPS: %llu ",nes.cycles_per_second());
     
-    //sprintf(caption,"FPS: %02d",timing.fps);
+    sprintf(caption,"FPS: %02d",timing.fps);
     SetWindowText(handle(),caption);
  
   }
@@ -216,6 +222,23 @@ int DisplayWindow::OnCommand(WPARAM wParam,LPARAM lParam) {
       gfx.SetDisplaySize(512,480);
       display_mode = ID_VIDEO_EAGLE512X480;
     }
+
+    if (LOWORD(wParam)==ID_MODE_NTSC) {
+      CheckMenuItem(menu_,ID_MODE_NTSC,MF_CHECKED);
+      CheckMenuItem(menu_,ID_MODE_PAL,MF_UNCHECKED);
+      nes.settings.machine_mode = NTSC;
+      nes.set_mode(nes.settings.machine_mode);
+      machine_mode = ID_MODE_NTSC;
+    }
+
+    if (LOWORD(wParam)==ID_MODE_PAL) {
+      CheckMenuItem(menu_,ID_MODE_PAL,MF_CHECKED);
+      CheckMenuItem(menu_,ID_MODE_NTSC,MF_UNCHECKED);
+      nes.settings.machine_mode = PAL;
+      nes.set_mode(nes.settings.machine_mode);
+      machine_mode = ID_MODE_PAL;
+    }
+    
 
     if (LOWORD(wParam)==ID_FILE_EXIT) {
       PostQuitMessage(0);

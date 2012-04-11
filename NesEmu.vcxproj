@@ -60,14 +60,14 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)..\Output\$(Configuration)\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)..\Output\$(Configuration)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Configuration)\</IntDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)..\Output\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)..\Output\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)..\Output\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)..\Output\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)..\Output\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)..\Output\$(Platform)\$(Configuration)\</IntDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)..\Output\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)..\Output\$(Platform)\$(Configuration)\</IntDir>
     <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">BasicCorrectnessRules.ruleset</CodeAnalysisRuleSet>
     <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
     <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
@@ -99,7 +99,7 @@
       <AssemblerListingLocation>$(SolutionDir)..\Listing\</AssemblerListingLocation>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>VCOMPD.LIB;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dxguid.lib;dsound.lib;VCOMPD.LIB;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TargetMachine>MachineX86</TargetMachine>
       <Profile>true</Profile>
@@ -123,11 +123,13 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <PreprocessorDefinitions>_WIN64 ;_AMD64_;_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerListingLocation>$(SolutionDir)..\Listing\</AssemblerListingLocation>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TargetMachine>MachineX64</TargetMachine>
       <Profile>true</Profile>
+      <AdditionalDependencies>dxguid.lib;dsound.lib;VCOMPD.LIB;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -146,7 +148,7 @@
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>VCOMP.LIB;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dxguid.lib;dsound.lib;VCOMP.LIB;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -173,6 +175,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <TargetMachine>MachineX64</TargetMachine>
       <Profile>true</Profile>
+      <AdditionalDependencies>dxguid.lib;dsound.lib;VCOMP.LIB;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -182,6 +185,7 @@
     <ClCompile Include="Code\display_window.cpp" />
     <ClCompile Include="Code\emulation\nes\apu\apu.cpp" />
     <ClCompile Include="Code\emulation\nes\cpu.cpp" />
+    <ClInclude Include="Code\audio\audio.h" />
     <ClInclude Include="Code\dialogs\options.h" />
     <ClInclude Include="Code\emulation\nes\apu\dmc.h" />
     <ClInclude Include="Code\emulation\nes\apu\noise.h" />
@@ -194,13 +198,18 @@
     <ClCompile Include="Code\emulation\nes\io.cpp" />
     <ClCompile Include="Code\emulation\nes\nes.cpp" />
     <ClCompile Include="Code\emulation\nes\ppu.cpp" />
-    <ClCompile Include="Code\sound\wave_output.cpp" />
-    <ClCompile Include="Code\sound\WaveOut.cpp" />
+    <ClCompile Include="Code\audio\ds.cpp" />
+    <ClCompile Include="Code\audio\wasapi.cpp" />
+    <ClCompile Include="Code\audio\wave_output.cpp" />
+    <ClCompile Include="Code\audio\WaveOut.cpp" />
     <ClCompile Include="Code\graphics\eagle.cpp" />
     <ClCompile Include="Code\graphics\HQ2x.cpp" />
     <ClCompile Include="Code\winmain.cpp" />
     <ClCompile Include="Code\graphics\gdi.cpp" />
     <ClCompile Include="Code\graphics\opengl.cpp" />
+    <ClInclude Include="Code\audio\ds.h" />
+    <ClInclude Include="Code\audio\audio_interface.h" />
+    <ClInclude Include="Code\audio\wasapi.h" />
     <ClInclude Include="Code\utilities\ring_buffer.h" />
   </ItemGroup>
   <ItemGroup>
@@ -219,8 +228,8 @@
     <ClInclude Include="Code\emulation\nes\nes.h" />
     <ClInclude Include="Code\emulation\nes\ppu.h" />
     <ClInclude Include="Code\emulation\nes\register_bit.h" />
-    <ClInclude Include="Code\sound\wave_output.h" />
-    <ClInclude Include="Code\sound\WaveOut.h" />
+    <ClInclude Include="Code\audio\wave_output.h" />
+    <ClInclude Include="Code\audio\WaveOut.h" />
     <ClInclude Include="Code\graphics\eagle.h" />
     <ClInclude Include="Code\graphics\graphics.h" />
     <ClInclude Include="Code\graphics\gdi.h" />

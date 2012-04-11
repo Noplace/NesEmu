@@ -14,12 +14,13 @@ class MMC3 : public GamePak::MemoryMapper {
     reg1 = 0;
     irq_counter = 0xFF;
     //irq_latch_reg = 0xFF;
-    irq_reload = 0xFF;
+    irq_refresh = 0xFF;
     last_ppu_addr = 0;
     a12_low_count = 0;
     save_ram = false;
     irq_enabled = false;
     inside_tick = false;
+    timer = 0;
   }
 
   void Write(uint16_t address,uint8_t data) {
@@ -53,18 +54,19 @@ class MMC3 : public GamePak::MemoryMapper {
 
     if (address == 0xC000) {
       //irq_latch_reg = data;
-      irq_reload = data;
+      irq_refresh = data;
     }
 
     if (address == 0xC001) {
       irq_latch_reg = data;
+      irq_reload = true;
     }
 
     if (address == 0xE000) {
       //irq_counter = irq_latch_reg;
       //disable irq
       irq_enabled = false;
-      gamepak.nes().cpu().enable_irq = false;
+      gamepak.nes().cpu().RaiseIRQLine();
     }
 
     if (address == 0xE001) {
@@ -177,32 +179,27 @@ class MMC3 : public GamePak::MemoryMapper {
   }
 
   void Tick(uint32_t address) {
-    //if(((address ^ last_ppu_addr) & address & 0x1000) && a12_low_count >= 8) {
+
+    address = gamepak.nes().ppu().address();
+    unsigned old_a12 = last_ppu_addr & 0x1000; 
+    unsigned new_a12 = address & 0x1000; 
+    ++timer;
+    if (old_a12^new_a12) {
+      if (timer > 16) {
+        if (irq_counter == 0) {
+          irq_reload = false;
+          irq_counter = irq_refresh;
+        } else {
+          --irq_counter;
+        }
     
-      /*if(((address ^ last_ppu_addr) & address & 0x1000) && a12_low_count >= 8)
-      {
-          if(!irq_counter--) irq_counter = irq_reload;
-          else if(irq_enabled) cpu.enable_irq = true;
+        if (irq_counter == 0 && irq_enabled == true) {
+          cpu->RaiseIRQLine();
+        }
       }
-      last_ppu_addr = address;
-      if(address & 0x1000) a12_low_count = 0; else ++a12_low_count;*/
-  
-    
-      if (irq_counter == 0) {
-        irq_counter = irq_reload;
-      } else {
-        --irq_counter;
-      }
-    
-      if (irq_counter == 0 && irq_enabled == true) {
-        cpu->enable_irq = true;
-        //gamepak.nes().cpu().P.I = 0;
-        //irq_enabled = false;
-      }
-    //}
-   // last_ppu_addr = address;
-    //if(address & 0x1000) a12_low_count = 0; else ++a12_low_count;
-  
+      timer = 0;
+    }
+    last_ppu_addr = address;
   }
  private:
    union {
@@ -219,13 +216,16 @@ class MMC3 : public GamePak::MemoryMapper {
    } reg1;
    uint8_t mirriong;//0 H , 1 V 
    uint8_t irq_counter;
-   uint8_t irq_reload;
+   uint8_t irq_refresh;
    uint8_t irq_latch_reg;
    uint16_t last_ppu_addr;
    uint16_t a12_low_count;
+   int timer;
+   bool irq_reload;
    bool save_ram;
    bool irq_enabled;
    bool inside_tick;
+
    Ppu* ppu;
    Cpu* cpu;
 };

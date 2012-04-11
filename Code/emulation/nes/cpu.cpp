@@ -29,8 +29,8 @@ AddressingModes Cpu::addressing_modes[256] = {
  };
 
 Cpu::Cpu() :  Component(), reset(false) {
-  instructions[0x000] = &Cpu::BRK;     instructions[0x001] = &Cpu::ORA_INX;    instructions[0x002] = &Cpu::_002;    instructions[0x003] = &Cpu::_003; instructions[0x004] = &Cpu::_004;    instructions[0x005] = &Cpu::ORA2;    instructions[0x006] = &Cpu::ASL1;    instructions[0x007] = &Cpu::_007; instructions[0x008] = &Cpu::PHP;     instructions[0x009] = &Cpu::ORA3;    instructions[0x00A] = &Cpu::ASL2;    instructions[0x00B] = &Cpu::_00B; instructions[0x00C] = &Cpu::_00C;       instructions[0x00D] = &Cpu::ORA4;    instructions[0x00E] = &Cpu::ASL3;    instructions[0x00F] = &Cpu::_00F;
-  instructions[0x010] = &Cpu::BPL;     instructions[0x011] = &Cpu::ORA_INY;    instructions[0x012] = &Cpu::_012;    instructions[0x013] = &Cpu::_013; instructions[0x014] = &Cpu::_014;    instructions[0x015] = &Cpu::ORA6;    instructions[0x016] = &Cpu::ASL4;    instructions[0x017] = &Cpu::_017; instructions[0x018] = &Cpu::CLC;     instructions[0x019] = &Cpu::ORA7;    instructions[0x01A] = &Cpu::_01A;    instructions[0x01B] = &Cpu::_01B; instructions[0x01C] = &Cpu::_01C;       instructions[0x01D] = &Cpu::ORA8;    instructions[0x01E] = &Cpu::ASL5;    instructions[0x01F] = &Cpu::_01F;
+  instructions[0x000] = &Cpu::BRK;     instructions[0x001] = &Cpu::ORA_INX;    instructions[0x002] = &Cpu::_002;    instructions[0x003] = &Cpu::_003; instructions[0x004] = &Cpu::_004;    instructions[0x005] = &Cpu::ORA_ZPG;    instructions[0x006] = &Cpu::ASL1;    instructions[0x007] = &Cpu::_007; instructions[0x008] = &Cpu::PHP;     instructions[0x009] = &Cpu::ORA_IMM;    instructions[0x00A] = &Cpu::ASL2;    instructions[0x00B] = &Cpu::_00B; instructions[0x00C] = &Cpu::_00C;       instructions[0x00D] = &Cpu::ORA_ABS;    instructions[0x00E] = &Cpu::ASL3;    instructions[0x00F] = &Cpu::_00F;
+  instructions[0x010] = &Cpu::BPL;     instructions[0x011] = &Cpu::ORA_INY;    instructions[0x012] = &Cpu::_012;    instructions[0x013] = &Cpu::_013; instructions[0x014] = &Cpu::_014;    instructions[0x015] = &Cpu::ORA_ZPX;    instructions[0x016] = &Cpu::ASL4;    instructions[0x017] = &Cpu::_017; instructions[0x018] = &Cpu::CLC;     instructions[0x019] = &Cpu::ORA_ABY;    instructions[0x01A] = &Cpu::_01A;    instructions[0x01B] = &Cpu::_01B; instructions[0x01C] = &Cpu::_01C;       instructions[0x01D] = &Cpu::ORA_ABX;    instructions[0x01E] = &Cpu::ASL5;    instructions[0x01F] = &Cpu::_01F;
   instructions[0x020] = &Cpu::JSR_ABS; instructions[0x021] = &Cpu::AND_INX;    instructions[0x022] = &Cpu::_022;    instructions[0x023] = &Cpu::_023; instructions[0x024] = &Cpu::BIT_ZPG; instructions[0x025] = &Cpu::AND_ZPG; instructions[0x026] = &Cpu::ROL_ZPG; instructions[0x027] = &Cpu::_027; instructions[0x028] = &Cpu::PLP; instructions[0x029] = &Cpu::AND_IMM; instructions[0x02A] = &Cpu::ROL_ACC; instructions[0x02B] = &Cpu::_02B; instructions[0x02C] = &Cpu::BIT_ABS;    instructions[0x02D] = &Cpu::AND_ABS; instructions[0x02E] = &Cpu::ROL_ABS; instructions[0x02F] = &Cpu::_02F;
   instructions[0x030] = &Cpu::BMI_REL; instructions[0x031] = &Cpu::AND_INY;    instructions[0x032] = &Cpu::_032;    instructions[0x033] = &Cpu::_033; instructions[0x034] = &Cpu::_034;    instructions[0x035] = &Cpu::AND_ZPX; instructions[0x036] = &Cpu::ROL_ZPX; instructions[0x037] = &Cpu::_037; instructions[0x038] = &Cpu::SEC_IMP; instructions[0x039] = &Cpu::AND_ABY; instructions[0x03A] = &Cpu::_03A;    instructions[0x03B] = &Cpu::_03B; instructions[0x03C] = &Cpu::_03C;       instructions[0x03D] = &Cpu::AND_ABX; instructions[0x03E] = &Cpu::ROL_ABX; instructions[0x03F] = &Cpu::_03F;
   instructions[0x040] = &Cpu::RTI_IMP; instructions[0x041] = &Cpu::EOR_INX;    instructions[0x042] = &Cpu::_042;    instructions[0x043] = &Cpu::_043; instructions[0x044] = &Cpu::_044;    instructions[0x045] = &Cpu::EOR_ZPG; instructions[0x046] = &Cpu::LSR_ZPG; instructions[0x047] = &Cpu::_047; instructions[0x048] = &Cpu::PHA; instructions[0x049] = &Cpu::EOR_IMM; instructions[0x04A] = &Cpu::LSR_ACC; instructions[0x04B] = &Cpu::_04B; instructions[0x04C] = &Cpu::JMP_ABS;    instructions[0x04D] = &Cpu::EOR_ABS; instructions[0x04E] = &Cpu::LSR_ABS; instructions[0x04F] = &Cpu::_04F;
@@ -54,20 +54,7 @@ int Cpu::Initialize(Nes* nes) {
   if (init_ == false) {
     Component::Initialize(nes);
     RAM = new uint8_t[0x800];
-    nmi=false;
-    nmi_edge_detected=false;
-    enable_irq = false;
-    disable_op_read = false;
-    //power up
-    op = 0;
-    cycles = 0;
-    current_inst_cycles = 0;
-    last_cpu_cycles_ = 0;
-    frequency_mhz_ = 0;
-    cycles_per_second = 0;
-    reset = true;
-    addr = 0;
-    read_address = write_address = 0;
+
 
     init_ = true;
     return S_OK;
@@ -85,13 +72,27 @@ int Cpu::Deinitialize() {
 }
 
 void Cpu::Power() {
+  nmi=false;
+  nmi_edge_detected=false;
+  enable_irq = false;
+  iq_count = 0;
+  //power up
+  op = 0;
+  cycles = 0;
+  current_inst_cycles = 0;
+  last_cpu_cycles_ = 0;
+  frequency_mhz_ = 0;
+  cycles_per_second = 0;
+  reset = true;
+  addr = 0;
+  read_address = write_address = 0;
+
   PC=0xC000;//MemReadAccess(0xFFFC);
   A=0;
   X=0;
   Y=0;
   S=0;
   P.raw = 0x34;
-  delay_irq = 0;
   irq_line = false;
   // Pre-initialize RAM the same way as FCEUX does, to improve TAS sync.
   for(unsigned a=0; a<0x800; ++a)
@@ -103,37 +104,75 @@ void Cpu::Reset() {
   if (reset == false) {
     cycles = 0;
     reset=true;
-    delay_irq = 0;
     irq_line = false;
+    iq_count = 0;
   }
 }
 
 
 __forceinline void Cpu::tick() {
-  //if (disable_op_read == true) return;
-  bool nmi_now = nmi;
-  nes_->ppu().Tick();
-  nes_->apu().Tick(0);
 
+  nes_->ppu().Tick();
+  nes_->apu().Tick();
+
+  enable_irq = irq_line & !P.I;
+ 
   ++cycles;
-  ++current_inst_cycles;  
+  ++current_inst_cycles;
 }
     
+void Cpu::Op() {
+
+  current_inst_cycles = 0;
+  prev_op = op;
+
+  op = MemReadAccess(PC++);
+
+  //PC_BREAKPOINT(0xe088);
+  #if defined(_DEBUG) && defined(CPUDEBUG)
+    debugger.HookBeforeCpuStep(this);
+  #endif
+  (this->*(instructions[op]))();
+  #if defined(_DEBUG) && defined(CPUDEBUG)
+    debugger.HookAfterCpuStep(this);
+    //OutputDebugString(debugger.debug_line);
+    nes_->log.Channel("cpu").Log(debugger.debug_line);
+  #endif
+
+  bool nmi_now = nmi;
+  if (reset) { 
+    InterruptVector(0xFFFC);
+    reset = false;
+  } else if(nmi_now && !nmi_edge_detected) { 
+    nmi_edge_detected = true;
+    InterruptVector(0xFFFA);
+  } else if (enable_irq==true) {
+    enable_irq = false;
+    InterruptVector(0xFFFE);
+  }
+
+
+  if(!nmi_now) 
+    nmi_edge_detected=false;
+
+}
+
 uint8_t Cpu::MemReadAccess(uint16_t address) {
   read_address = address;
   tick();
-
   if(address >= 0 && address < 0x1FFF) { 
     uint8_t& r = RAM[address & 0x7FF]; return r; 
   } else if(address >= 0x2000 && address <= 0x3FFF) {
     return nes_->ppu().Read(address);
   } else if(address >= 0x4000 && address <= 0x40FF) {
-    switch(address & 0x1F) {
-        case 0x15: return nes_->apu().Read();  
-        case 0x16: return IO::JoyRead2(); 
-        case 0x17: return 0;//IO::JoyRead2(); // write:passthru
-        default:   return nes_->ppu().open_bus();  
+    switch(address) {
+        case 0x4015: return nes_->apu().Read();  
+        case 0x4016: return IO::JoyRead2(); 
+        //case 0x17: return 0;//IO::JoyRead2(); // write:passthru
+        //default:   nes_->ppu().open_bus(); 
+          
     }
+    return 0x40;
   } else if (address >= 0x6000 && address <= 0xFFFF) {
     return nes_->gamepak().Read(address);
   }
@@ -178,74 +217,24 @@ void Cpu::MemWriteAccess(uint16_t address, uint8_t value)  {
     } else if (address >= 0x6000 && address <= 0xFFFF) {
       nes_->gamepak().Write(address, value);
     }
-}
 
-void Cpu::Op() {
-  bool nmi_now = nmi;
-  current_inst_cycles = 0;
-  prev_op = op;
-
-  op = MemReadAccess(PC++);
-  //PC_BREAKPOINT(0xe088);
-  disable_op_read = false;
-  #if defined(_DEBUG) && defined(CPUDEBUG)
-    debugger.HookBeforeCpuStep(this);
-  #endif
-  if (reset) { 
-    op=0x101; 
-  } else if(nmi_now && !nmi_edge_detected) { 
-    nmi_edge_detected = true;
-    op=0x100; 
-  } else if (enable_irq && !P.I) { //if(irq_line) { // && !delay_irq && !prev_i_value) { 
-    op=0x102;
-    irq_line = false;
-    delay_irq = 0;
-  }
-
-  if (delay_irq) {
-    if (!--delay_irq)
-        op=0x102;
-      //if(enable_irq && !P.I)
-  }
-
-  if(!nmi_now) 
-    nmi_edge_detected=false;
-
-  (this->*(instructions[op]))();
-  #if defined(_DEBUG) && defined(CPUDEBUG)
-    debugger.HookAfterCpuStep(this);
-    //OutputDebugString(debugger.debug_line);
-    nes_->log.Channel("cpu").Log(debugger.debug_line);
-  #endif
 }
 
 void Cpu::BRK() {
-  addr = FetchAddressMode0(0xFFFE);
+  MemReadAccess(PC++);
   decltype(P) t;
   t.raw = P.raw|0x30; 
-  MemReadAccess(PC++);
   PushPC();
-  PC = addr;
   Push(t.raw);
+  PC = FetchAddressMode0(0xFFFE);
   P.I = 1;
 }
 
 void Cpu::ORA_INX() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = X;
-  addr=uint8_t(addr+d); 
-  d=0; 
-  tick();
-  addr=MemReadAccess(c=addr); 
-  addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= A;
-  c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c | t;
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+  addr = FetchAddressIndirectX(PC);
+  A |= MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_002() {
@@ -291,7 +280,7 @@ void Cpu::_004() {
   tick();
 }
 
-void Cpu::ORA2() {
+void Cpu::ORA_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
   addr = MemReadAccess(PC++);
   t &= A;
@@ -338,7 +327,7 @@ void Cpu::PHP() {
   Push(t);
 }
 
-void Cpu::ORA3() {
+void Cpu::ORA_IMM() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
   t &= A;
   c = t; t = 0xFF;
@@ -377,17 +366,11 @@ void Cpu::_00C() {
   tick();
 }
 
-void Cpu::ORA4() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  t &= A;
-  c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c | t;
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+void Cpu::ORA_ABS() {
+  addr = FetchAddressAbsolute(PC);
+  A |= MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::ASL3() {
@@ -433,18 +416,10 @@ void Cpu::BPL() {
 }
 
 void Cpu::ORA_INY() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  Misfire(addr, addr+d);
-  t &= A;
-  c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c | t;
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+  addr = FetchAddressIndirectY(PC,true);
+  A |= MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_012() {
@@ -491,18 +466,11 @@ void Cpu::_014() {
   tick();
 }
 
-void Cpu::ORA6() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= A;
-  c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c | t;
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+void Cpu::ORA_ZPX() {
+  addr = FetchAddressZeroPageX(PC);
+  A |= MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::ASL4() {
@@ -542,7 +510,7 @@ void Cpu::CLC() {
   P.C = 0;
 }
 
-void Cpu::ORA7() {
+void Cpu::ORA_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
   addr = MemReadAccess(PC++);
   d = Y;
@@ -592,7 +560,7 @@ void Cpu::_01C() {
   tick();
 }
 
-void Cpu::ORA8() {
+void Cpu::ORA_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
   addr = MemReadAccess(PC++);
   d = X;
@@ -659,18 +627,10 @@ void Cpu::JSR_ABS() {
 }
 
 void Cpu::AND_INX() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= A;
-  c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c & t;
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+  addr = FetchAddressIndirectX(PC);
+  A = A & MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_022() {
@@ -761,13 +721,10 @@ void Cpu::_027() {
 }
 
 void Cpu::PLP() {
-  tick();
-  //irq_line = enable_irq * (!P.I);
-  //delay_irq = 2 * irq_line;
-
+  MemReadAccess(PC);
+  FakeIncrementS();
   auto pop_val = Pop();
   P.raw = pop_val & ~0x30;
-  tick();
 }
 
 void Cpu::AND_IMM() {
@@ -876,18 +833,10 @@ void Cpu::BMI_REL() {
 }
 
 void Cpu::AND_INY() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  Misfire(addr, addr+d);
-  t &= A;
-  c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c & t;
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+  addr = FetchAddressIndirectY(PC,true);
+  A &= MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_032() {
@@ -937,29 +886,19 @@ void Cpu::_034() {
 }
 
 void Cpu::AND_ZPX() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= A;
-  c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c & t;
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+  addr = FetchAddressZeroPageX(PC);
+  A &= MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::ROL_ZPX() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
-  sb = P.C;
+  addr = FetchAddressZeroPageX(PC);
+  unsigned t = MemReadAccess(addr);
+  unsigned sb = P.C;
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(addr, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -1060,21 +999,13 @@ void Cpu::AND_ABX() {
 }
 
 void Cpu::ROL_ABX() {
-  /*unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
-  */
   addr = FetchAddressAbsoluteX(PC);
-
   auto orig_val = MemReadAccess(addr);
   unsigned sb = P.C;
   P.C = orig_val & 0x80;
   auto mod_val = (orig_val << 1) | (sb * 0x01);
   MemWriteAccess(addr, orig_val);
   MemWriteAccess(addr, mod_val);
-  //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
 }
@@ -1096,30 +1027,18 @@ void Cpu::_03F() {
 }
 
 void Cpu::RTI_IMP() {
-  unsigned t=0xFF;//0x20 for op > 0x100
-  tick(); 
   MemReadAccess(PC++); 
+  FakeIncrementS();
   P.raw = Pop();
   PC = Pop(); 
-  //irq_line = enable_irq * (!P.I);
-  //delay_irq = 0;
   PC |= (Pop() << 8);
-  //P.raw = t & ~0x30;
 }
 
 void Cpu::EOR_INX() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= A;
-  c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c ^ t;
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+  addr = FetchAddressIndirectX(PC);
+  A = A ^ MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_042() {
@@ -1296,21 +1215,10 @@ void Cpu::BVC_REL() {
 }
 
 void Cpu::EOR_INY() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = Y;
-  addr=MemReadAccess(c=addr); 
-  addr+=256*MemReadAccess(wrap(c,c+1));
-  Misfire(addr, addr+d);
-
-  t &= A;
-  c = t; 
-  t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c ^ t;
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+  addr = FetchAddressIndirectY(PC,true);
+  A ^= MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_052() {
@@ -1404,10 +1312,8 @@ void Cpu::_057() {
 }
 
 void Cpu::CLI() {
-  //irq_line = enable_irq * (!P.I);
-  //delay_irq = 2;
-  P.I = 0;
   tick();
+  P.I = 0;
 }
 
 void Cpu::EOR_ABY() {
@@ -1503,20 +1409,21 @@ void Cpu::_05F() {
 }
 
 void Cpu::RTS_IMP() {
-  tick();
   MemReadAccess(PC++); 
+  FakeIncrementS();
   PC = Pop(); 
   PC |= (Pop() << 8);
   MemReadAccess(PC++);
 }
 
 void Cpu::ADC_INX() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  unsigned  t=0xFF, c=0;
+  /*addr = MemReadAccess(PC++);
   d = X;
   addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= MemReadAccess(addr+d);
+  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));*/
+  addr = FetchAddressIndirectX(PC);
+  t = MemReadAccess(addr);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
   P.N = t & 0x80;
@@ -1600,8 +1507,8 @@ void Cpu::_067() {
 }
 
 void Cpu::PLA_IMP() {
-  tick();
-  tick(); 
+  MemReadAccess(PC);
+  FakeIncrementS();
   A = Pop();
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
@@ -1705,13 +1612,13 @@ void Cpu::BVS_REL() {
 }
 
 void Cpu::ADC_INY() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
-  c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
+  unsigned t,c;
+  addr = FetchAddressIndirectY(PC,true);
+  t = MemReadAccess(addr);
+  c = t; 
+  t += A + P.C; 
+  P.V = (c^t) & (A^t) & 0x80; 
+  P.C = t & 0x100;
   A = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -1806,10 +1713,8 @@ void Cpu::_077() {
 }
 
 void Cpu::SEI() {
-  //irq_line = enable_irq * (!P.I);
-  //delay_irq = 2 * irq_line;
-  P.I = 1;
   tick();
+  P.I = 1;
 }
 
 void Cpu::ADC_ABY() {
@@ -1916,13 +1821,8 @@ void Cpu::_080() {
 }
 
 void Cpu::STA_INX() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= A;
-  MemWriteAccess(addr+d, t);
+  addr = FetchAddressIndirectX(PC);
+  MemWriteAccess(addr, A);
 }
 
 void Cpu::_082() {
@@ -2045,7 +1945,8 @@ void Cpu::STA_INY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
   addr = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
+  addr=MemReadAccess(c=addr); 
+  addr+=256*MemReadAccess(wrap(c,c+1));
   MemReadAccess(wrap(addr, addr+d));
   t &= A;
   MemWriteAccess(addr+d, t);
@@ -2197,15 +2098,10 @@ void Cpu::LDY_IMM() {
 }
 
 void Cpu::LDA_INX() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= MemReadAccess(addr+d);
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+  addr = FetchAddressIndirectX(PC);
+  A = MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = A == 0;
 }
 
 void Cpu::LDX_IMM() {
@@ -2350,15 +2246,10 @@ void Cpu::BCS_REL() {
 }
 
 void Cpu::LDA_INY() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
-  A = t;
-  P.N = t & 0x80;
-  P.Z = uint8_t(t) == 0;
+  addr = FetchAddressIndirectY(PC,true);
+  A = MemReadAccess(addr);
+  P.N = A & 0x80;
+  P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_0B2() {
@@ -2731,15 +2622,11 @@ void Cpu::BNE_REL() {
 }
 
 void Cpu::CMP_INY() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  Misfire(addr, addr+d);
-  t &= A;
-  c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
-  t = c - t; P.C = ~t & 0x100;
+  addr = FetchAddressIndirectY(PC,true);
+  unsigned t = 0,c = A;
+  t = MemReadAccess(addr);
+  t = c - t;
+  P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
 }
@@ -3117,14 +3004,13 @@ void Cpu::BEQ_REL() {
 }
 
 void Cpu::SBC_INY() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  addr = FetchAddressIndirectY(PC,true);
+  unsigned c = 0,t = MemReadAccess(addr);
   t = uint8_t(~t);
-  c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
+  c = t;
+  t += A + P.C; 
+  P.V = (c^t) & (A^t) & 0x80; 
+  P.C = t & 0x100;
   A = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -3275,7 +3161,8 @@ void Cpu::SBC_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
   addr = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
+  addr=uint8_t(addr); 
+  addr+=256*MemReadAccess(PC++);
   Misfire(addr, addr+d);
   t &= MemReadAccess(addr+d);
   t = uint8_t(~t);

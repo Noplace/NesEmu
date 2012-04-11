@@ -11,20 +11,10 @@ Application::~Application() {
 }
 
 int Application::Run() {
+  CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
   display_window_.Init();
   
   MSG msg;
-  /*BOOL msg_return;
-  while( (msg_return = GetMessage( &msg, NULL, 0, 0 )) != 0) { 
-    if (msg_return == -1) {
-      // handle the error and possibly exit
-    }
-    else {
-      TranslateMessage(&msg); 
-      DispatchMessage(&msg); 
-    }
-  } */
-  
   do {
     if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
@@ -34,9 +24,9 @@ int Application::Run() {
     }
   } while(msg.message!=WM_QUIT && display_window_.exit_signal() == false);
 
- 
-   //Return the exit code to the system. 
-   return static_cast<int>(msg.wParam);
+ CoUninitialize();
+ //Return the exit code to the system. 
+ return static_cast<int>(msg.wParam);
 }
 
 }

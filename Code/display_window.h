@@ -25,6 +25,7 @@ class DisplayWindow: public core::windows::Window {
   private:
     bool exit_signal_;
     int display_mode;
+    int machine_mode;
     uint32_t* output;
     //graphics::GDI gfx;
     graphics::OpenGL gfx;
