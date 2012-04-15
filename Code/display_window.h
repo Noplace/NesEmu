@@ -33,7 +33,7 @@ class DisplayWindow: public core::windows::Window {
     Nes nes;
     dialogs::Options options;
 
-    utilities::Timer timer;
+    utilities::Timer<double> timer;
     struct {
       uint64_t extra_cycles;
       uint64_t current_cycles;

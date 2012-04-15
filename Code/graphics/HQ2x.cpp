@@ -58,9 +58,9 @@ static void initialize() {
     double g = (G << 3) | (G >> 2);
     double b = (B << 3) | (B >> 2);
 
-    double y = (r + g + b) * (0.25f * (63.5f / 48.0f));
-    double u = ((r - b) * 0.25f + 128.0f) * (7.5f / 7.0f);
-    double v = ((g * 2.0f - r - b) * 0.125f + 128.0f) * (7.5f / 6.0f);
+    double y = (r + g + b) * (0.25 * (63.5f / 48.0));
+    double u = ((r - b) * 0.25 + 128.0) * (7.5f / 7.0);
+    double v = ((g * 2.0 - r - b) * 0.125 + 128.0) * (7.5 / 6.0);
 
     yuvTable[i] = ((unsigned)y << 21) + ((unsigned)u << 11) + ((unsigned)v);
   }

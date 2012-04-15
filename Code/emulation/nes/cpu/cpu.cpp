@@ -1,11 +1,11 @@
-#include "nes.h"
-
+#include "../nes.h"
+//#define CPUDEBUG
 #ifdef _DEBUG
 #define PC_BREAKPOINT(x) if (PC==x) { DebugBreak(); }
 #define CYCLE_BREAKPOINT(x) if (total_cycles==x) { DebugBreak(); }
 #endif
 #if defined(_DEBUG) && defined(CPUDEBUG)
-#include "debug/cpu_debugger.h"
+#include "../debug/cpu_debugger.h"
 CpuDebugger debugger;
 #endif
 
@@ -45,7 +45,6 @@ Cpu::Cpu() :  Component(), reset(false) {
   instructions[0x0D0] = &Cpu::BNE_REL; instructions[0x0D1] = &Cpu::CMP_INY;    instructions[0x0D2] = &Cpu::_0D2;    instructions[0x0D3] = &Cpu::_0D3; instructions[0x0D4] = &Cpu::_0D4;    instructions[0x0D5] = &Cpu::CMP_ZPX; instructions[0x0D6] = &Cpu::DEC_ZPX; instructions[0x0D7] = &Cpu::_0D7; instructions[0x0D8] = &Cpu::CLD_IMP; instructions[0x0D9] = &Cpu::CMP_ABY; instructions[0x0DA] = &Cpu::_0DA;    instructions[0x0DB] = &Cpu::_0DB; instructions[0x0DC] = &Cpu::_0DC;       instructions[0x0DD] = &Cpu::CMP_ABX; instructions[0x0DE] = &Cpu::DEC_ABX; instructions[0x0DF] = &Cpu::_0DF;
   instructions[0x0E0] = &Cpu::CPX_IMM; instructions[0x0E1] = &Cpu::SBC_INX;    instructions[0x0E2] = &Cpu::_0E2;    instructions[0x0E3] = &Cpu::_0E3; instructions[0x0E4] = &Cpu::CPX_ZPG; instructions[0x0E5] = &Cpu::SBC_ZPG; instructions[0x0E6] = &Cpu::INC_ZPG; instructions[0x0E7] = &Cpu::_0E7; instructions[0x0E8] = &Cpu::INX_IMP; instructions[0x0E9] = &Cpu::SBC_IMM; instructions[0x0EA] = &Cpu::NOP_IMP; instructions[0x0EB] = &Cpu::_0EB; instructions[0x0EC] = &Cpu::CPX_ABS;    instructions[0x0ED] = &Cpu::SBC_ABS; instructions[0x0EE] = &Cpu::INC_ABS; instructions[0x0EF] = &Cpu::_0EF;
   instructions[0x0F0] = &Cpu::BEQ_REL; instructions[0x0F1] = &Cpu::SBC_INY;    instructions[0x0F2] = &Cpu::_0F2;    instructions[0x0F3] = &Cpu::_0F3; instructions[0x0F4] = &Cpu::_0F4;    instructions[0x0F5] = &Cpu::SBC_ZPX; instructions[0x0F6] = &Cpu::INC_ZPX; instructions[0x0F7] = &Cpu::_0F7; instructions[0x0F8] = &Cpu::SED_IMP; instructions[0x0F9] = &Cpu::SBC_ABY; instructions[0x0FA] = &Cpu::_0FA;    instructions[0x0FB] = &Cpu::_0FB; instructions[0x0FC] = &Cpu::_0FC;       instructions[0x0FD] = &Cpu::SBC_ABX; instructions[0x0FE] = &Cpu::INC_ABX; instructions[0x0FF] = &Cpu::_0FF;
-  instructions[0x100] = &Cpu::_100;    instructions[0x101] = &Cpu::_101;       instructions[0x102] = &Cpu::_102;
 
   fetch_address[0x00] = &Cpu::FetchAddressMode0;
 }
@@ -75,7 +74,6 @@ void Cpu::Power() {
   nmi=false;
   nmi_edge_detected=false;
   enable_irq = false;
-  iq_count = 0;
   //power up
   op = 0;
   cycles = 0;
@@ -84,8 +82,8 @@ void Cpu::Power() {
   frequency_mhz_ = 0;
   cycles_per_second = 0;
   reset = true;
-  addr = 0;
-  read_address = write_address = 0;
+  address_bus = 0;
+
 
   PC=0xC000;//MemReadAccess(0xFFFC);
   A=0;
@@ -105,7 +103,6 @@ void Cpu::Reset() {
     cycles = 0;
     reset=true;
     irq_line = false;
-    iq_count = 0;
   }
 }
 
@@ -114,7 +111,7 @@ __forceinline void Cpu::tick() {
 
   nes_->ppu().Tick();
   nes_->apu().Tick();
-
+  nes_->gamepak().mapper->Tick(0);
   enable_irq = irq_line & !P.I;
  
   ++cycles;
@@ -141,14 +138,14 @@ void Cpu::Op() {
 
   bool nmi_now = nmi;
   if (reset) { 
-    InterruptVector(0xFFFC);
+    RESET();
     reset = false;
   } else if(nmi_now && !nmi_edge_detected) { 
     nmi_edge_detected = true;
-    InterruptVector(0xFFFA);
+    NMI();
   } else if (enable_irq==true) {
     //enable_irq = false;
-    InterruptVector(0xFFFE);
+    IRQ();
   }
 
 
@@ -158,7 +155,6 @@ void Cpu::Op() {
 }
 
 uint8_t Cpu::MemReadAccess(uint16_t address) {
-  read_address = address;
   tick();
   if(address >= 0 && address < 0x1FFF) { 
     uint8_t& r = RAM[address & 0x7FF]; return r; 
@@ -181,7 +177,6 @@ uint8_t Cpu::MemReadAccess(uint16_t address) {
 }
 
 void Cpu::MemWriteAccess(uint16_t address, uint8_t value)  {
-  write_address = address;
     // Memory writes are turned into reads while reset is being signalled
     if (reset && address!=0x4017) {
       //khalid  -on for cpu reset compatibility
@@ -226,13 +221,21 @@ void Cpu::BRK() {
   t.raw = P.raw|0x30; 
   PushPC();
   Push(t.raw);
-  PC = FetchAddressMode0(0xFFFE);
+  if (nmi == true && !nmi_edge_detected)
+  {
+    nmi_edge_detected = true;
+    PC = FetchAddressMode0(0xFFFA);
+  }
+  else
+  {
+    PC = FetchAddressMode0(0xFFFE);
+  }
   P.I = 1;
 }
 
 void Cpu::ORA_INX() {
-  addr = FetchAddressIndirectX(PC);
-  A |= MemReadAccess(addr);
+  address_bus = FetchAddressIndirectX(PC);
+  A |= MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
@@ -250,23 +253,23 @@ void Cpu::_002() {
 
 void Cpu::_003() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); 
+  address_bus =uint8_t(address_bus+d); 
   d=0; 
   tick();
-  addr=MemReadAccess(c=addr); 
-  addr+=256*MemReadAccess(wrap(c,c+1));
+  address_bus =MemReadAccess(c=address_bus); 
+  address_bus += 256*MemReadAccess(wrap(c,c+1));
 
 
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x80;
   auto orig_val = t;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c | t;
   A = t;
@@ -276,16 +279,16 @@ void Cpu::_003() {
 
 void Cpu::_004() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   tick();
 }
 
 void Cpu::ORA_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c | t;
   A = t;
   P.N = t & 0x80;
@@ -294,11 +297,11 @@ void Cpu::ORA_ZPG() {
 
 void Cpu::ASL1() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -306,13 +309,13 @@ void Cpu::ASL1() {
 
 void Cpu::_007() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = c | t;
   A = t;
@@ -361,27 +364,27 @@ void Cpu::_00B() {
 
 void Cpu::_00C() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
   tick();
 }
 
 void Cpu::ORA_ABS() {
-  addr = FetchAddressAbsolute(PC);
-  A |= MemReadAccess(addr);
+  address_bus = FetchAddressAbsolute(PC);
+  A |= MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::ASL3() {
   unsigned  d=0, pbits =  0x30;
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  auto orig = MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  auto orig = MemReadAccess(address_bus+d);
   P.C = orig & 0x80;
   auto t = (orig << 1);
-  MemWriteAccess(addr+d, orig);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -389,14 +392,14 @@ void Cpu::ASL3() {
 
 void Cpu::_00F() {
   unsigned  d=0;
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
   auto c = A; 
-  auto orig = MemReadAccess(addr+d);
+  auto orig = MemReadAccess(address_bus+d);
   P.C = orig & 0x80;
   auto t = (orig << 1);
-  MemWriteAccess(addr+d, orig);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig);
+  MemWriteAccess(address_bus+d, t);
   t = c | t;
   A = t;
   P.N = t & 0x80;
@@ -405,33 +408,33 @@ void Cpu::_00F() {
 
 void Cpu::BPL() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= P.raw|pbits; c = t;
   t = 1;
   t <<= 1;
   t <<= 2;
   t <<= 4;
   t = c & t;
-  if(!t) { tick(); Misfire(PC, addr = int8_t(addr) + PC); PC=addr; };
+  if(!t) { tick(); Misfire(PC, address_bus = int8_t(address_bus) + PC); PC=address_bus; };
 }
 
 void Cpu::ORA_INY() {
-  addr = FetchAddressIndirectY(PC,true);
-  A |= MemReadAccess(addr);
+  address_bus = FetchAddressIndirectY(PC,true);
+  A |= MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_012() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -439,18 +442,18 @@ void Cpu::_012() {
 
 void Cpu::_013() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x80;
   auto orig_val = t;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c | t;
   A = t;
@@ -460,28 +463,28 @@ void Cpu::_013() {
 
 void Cpu::_014() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   tick();
 }
 
 void Cpu::ORA_ZPX() {
-  addr = FetchAddressZeroPageX(PC);
-  A |= MemReadAccess(addr);
+  address_bus = FetchAddressZeroPageX(PC);
+  A |= MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::ASL4() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -489,15 +492,15 @@ void Cpu::ASL4() {
 
 void Cpu::_017() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = c | t;
   A = t;
@@ -512,13 +515,13 @@ void Cpu::CLC() {
 
 void Cpu::ORA_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c | t;
   A = t;
   P.N = t & 0x80;
@@ -532,18 +535,18 @@ void Cpu::_01A() {
 
 void Cpu::_01B() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x80;
   auto orig_val = t;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c | t;
   A = t;
@@ -553,22 +556,22 @@ void Cpu::_01B() {
 
 void Cpu::_01C() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   tick();
 }
 
 void Cpu::ORA_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c | t;
   A = t;
   P.N = t & 0x80;
@@ -577,18 +580,18 @@ void Cpu::ORA_ABX() {
 
 void Cpu::ASL5() {
   //unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  /*addr = MemReadAccess(PC++);
+  /*address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); 
-  addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); 
+  address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   */
-  addr = FetchAddressAbsoluteX(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsoluteX(PC);
+  auto orig_val = MemReadAccess(address_bus);
   P.C = orig_val & 0x80;
   auto mod_val = (orig_val << 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
@@ -596,19 +599,19 @@ void Cpu::ASL5() {
 
 void Cpu::_01F() {
   /*unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); 
-  addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); 
+  address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   */
-  addr = FetchAddressAbsoluteX(PC);
+  address_bus = FetchAddressAbsoluteX(PC);
   unsigned c = A; 
-  auto orig_val = MemReadAccess(addr);
+  auto orig_val = MemReadAccess(address_bus);
   P.C = orig_val & 0x80;
   auto mod_val = (orig_val << 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   mod_val = c | mod_val;
   A = mod_val;
@@ -618,17 +621,17 @@ void Cpu::_01F() {
 
 void Cpu::JSR_ABS() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); 
-  addr+=256*MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); 
+  address_bus += 256*MemReadAccess(PC++);
   tick();
   d=PC-1; Push(d>>8); Push(d);
-  PC = addr;
+  PC = address_bus;
 }
 
 void Cpu::AND_INX() {
-  addr = FetchAddressIndirectX(PC);
-  A = A & MemReadAccess(addr);
+  address_bus = FetchAddressIndirectX(PC);
+  A = A & MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
@@ -647,19 +650,19 @@ void Cpu::_022() {
 
 void Cpu::_023() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x80;
   auto orig_val = t;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c & t;
   A = t;
@@ -669,10 +672,10 @@ void Cpu::_023() {
 
 void Cpu::BIT_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.V = t & 0x40; P.N = t & 0x80;
   t = c & t;
   P.Z = uint8_t(t) == 0;
@@ -680,10 +683,10 @@ void Cpu::BIT_ZPG() {
 
 void Cpu::AND_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c & t;
   A = t;
   P.N = t & 0x80;
@@ -692,12 +695,12 @@ void Cpu::AND_ZPG() {
 
 void Cpu::ROL_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -705,14 +708,14 @@ void Cpu::ROL_ZPG() {
 
 void Cpu::_027() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = c & t;
   A = t;
@@ -762,11 +765,11 @@ void Cpu::_02B() {
 
 void Cpu::BIT_ABS() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.V = t & 0x40; P.N = t & 0x80;
   t = c & t;
   P.Z = uint8_t(t) == 0;
@@ -775,11 +778,11 @@ void Cpu::BIT_ABS() {
 void Cpu::AND_ABS() {
   unsigned  t=0xFF, c=0, pbits =  0x30;//0x20 for op > 0x100
   
-  addr = FetchAddressAbsolute(PC);
+  address_bus = FetchAddressAbsolute(PC);
 
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr);
+  t &= MemReadAccess(address_bus);
   t = c & t;
   A = t;
   P.N = t & 0x80;
@@ -788,15 +791,15 @@ void Cpu::AND_ABS() {
 
 void Cpu::ROL_ABS() {
   //unsigned  t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = FetchAddressAbsolute(PC);
+  address_bus = FetchAddressAbsolute(PC);
 
-  auto orig_val = MemReadAccess(addr);
+  auto orig_val = MemReadAccess(address_bus);
 
   unsigned sb = P.C;
   P.C = orig_val & 0x80;
   auto mod_val = (orig_val << 1) | (sb * 0x01);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
@@ -804,15 +807,15 @@ void Cpu::ROL_ABS() {
 
 void Cpu::_02F() {
   unsigned  d=0;//, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
   unsigned c = A; 
-  auto orig_val = MemReadAccess(addr+d);
+  auto orig_val = MemReadAccess(address_bus+d);
   unsigned sb = P.C;
   P.C = orig_val & 0x80;
   auto mod_val = (orig_val << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, mod_val);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, mod_val);
   //tick();
   mod_val = c & mod_val;
   A = mod_val;
@@ -822,34 +825,34 @@ void Cpu::_02F() {
 
 void Cpu::BMI_REL() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= P.raw|pbits; c = t;
   t = 1;
   t <<= 1;
   t <<= 2;
   t <<= 4;
   t = c & t;
-  if(t) { tick(); Misfire(PC, addr = int8_t(addr) + PC); PC=addr; };
+  if(t) { tick(); Misfire(PC, address_bus = int8_t(address_bus) + PC); PC=address_bus; };
 }
 
 void Cpu::AND_INY() {
-  addr = FetchAddressIndirectY(PC,true);
-  A &= MemReadAccess(addr);
+  address_bus = FetchAddressIndirectY(PC,true);
+  A &= MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_032() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -857,19 +860,19 @@ void Cpu::_032() {
 
 void Cpu::_033() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x80;
   auto orig_val = t;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c & t;
   A = t;
@@ -879,26 +882,26 @@ void Cpu::_033() {
 
 void Cpu::_034() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   tick();
 }
 
 void Cpu::AND_ZPX() {
-  addr = FetchAddressZeroPageX(PC);
-  A &= MemReadAccess(addr);
+  address_bus = FetchAddressZeroPageX(PC);
+  A &= MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::ROL_ZPX() {
-  addr = FetchAddressZeroPageX(PC);
-  unsigned t = MemReadAccess(addr);
+  address_bus = FetchAddressZeroPageX(PC);
+  unsigned t = MemReadAccess(address_bus);
   unsigned sb = P.C;
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr, t);
+  MemWriteAccess(address_bus, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -906,16 +909,16 @@ void Cpu::ROL_ZPX() {
 
 void Cpu::_037() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x80;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = c & t;
   A = t;
@@ -934,13 +937,13 @@ void Cpu::SEC_IMP() {
 
 void Cpu::AND_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c & t;
   A = t;
   P.N = t & 0x80;
@@ -954,20 +957,20 @@ void Cpu::_03A() {
 
 void Cpu::_03B() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); 
-  addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); 
+  address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x80;
   auto orig_val = t;
   t = (t << 1) | (sb * 0x01);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   t = c & t;
   A = t;
   P.N = t & 0x80;
@@ -976,22 +979,22 @@ void Cpu::_03B() {
 
 void Cpu::_03C() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   tick();
 }
 
 void Cpu::AND_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c & t;
   A = t;
   P.N = t & 0x80;
@@ -999,26 +1002,26 @@ void Cpu::AND_ABX() {
 }
 
 void Cpu::ROL_ABX() {
-  addr = FetchAddressAbsoluteX(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsoluteX(PC);
+  auto orig_val = MemReadAccess(address_bus);
   unsigned sb = P.C;
   P.C = orig_val & 0x80;
   auto mod_val = (orig_val << 1) | (sb * 0x01);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
 }
 
 void Cpu::_03F() {
-  addr = FetchAddressAbsoluteX(PC);
+  address_bus = FetchAddressAbsoluteX(PC);
   unsigned c = A;
-  auto orig_val = MemReadAccess(addr);
+  auto orig_val = MemReadAccess(address_bus);
   unsigned sb = P.C;
   P.C = orig_val & 0x80;
   auto mod_val = (orig_val << 1) | (sb * 0x01);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   mod_val = c & mod_val;
   A = mod_val;
@@ -1035,8 +1038,8 @@ void Cpu::RTI_IMP() {
 }
 
 void Cpu::EOR_INX() {
-  addr = FetchAddressIndirectX(PC);
-  A = A ^ MemReadAccess(addr);
+  address_bus = FetchAddressIndirectX(PC);
+  A = A ^ MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
@@ -1054,18 +1057,18 @@ void Cpu::_042() {
 
 void Cpu::_043() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x01;
   auto orig_val = t;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c ^ t;
   A = t;
@@ -1075,16 +1078,16 @@ void Cpu::_043() {
 
 void Cpu::_044() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   tick();
 }
 
 void Cpu::EOR_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c ^ t;
   A = t;
   P.N = t & 0x80;
@@ -1093,11 +1096,11 @@ void Cpu::EOR_ZPG() {
 
 void Cpu::LSR_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -1105,13 +1108,13 @@ void Cpu::LSR_ZPG() {
 
 void Cpu::_047() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = c ^ t;
   A = t;
@@ -1163,10 +1166,10 @@ void Cpu::JMP_ABS() {
 
 void Cpu::EOR_ABS() {
   unsigned  t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = FetchAddressAbsolute(PC);
+  address_bus = FetchAddressAbsolute(PC);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr);
+  t &= MemReadAccess(address_bus);
   t = c ^ t;
   A = t;
   P.N = t & 0x80;
@@ -1175,27 +1178,27 @@ void Cpu::EOR_ABS() {
 
 void Cpu::LSR_ABS() {
   //unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = FetchAddressAbsolute(PC);
+  address_bus = FetchAddressAbsolute(PC);
 
-  auto orig_val = MemReadAccess(addr);
+  auto orig_val = MemReadAccess(address_bus);
   P.C = orig_val & 0x01;
   auto mod_val = (orig_val >> 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
 }
 
 void Cpu::_04F() {
-  addr = FetchAddressAbsolute(PC);
+  address_bus = FetchAddressAbsolute(PC);
 
   unsigned c = A; 
-  auto orig_val = MemReadAccess(addr);
+  auto orig_val = MemReadAccess(address_bus);
   P.C = orig_val & 0x01;
   auto mod_val = (orig_val >> 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   mod_val = c ^ mod_val;
   A = mod_val;
@@ -1205,32 +1208,32 @@ void Cpu::_04F() {
 
 void Cpu::BVC_REL() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= P.raw|pbits; c = t;
   t = 1;
   t <<= 2;
   t <<= 4;
   t = c & t;
-  if(!t) { tick(); Misfire(PC, addr = int8_t(addr) + PC); PC=addr; };
+  if(!t) { tick(); Misfire(PC, address_bus = int8_t(address_bus) + PC); PC=address_bus; };
 }
 
 void Cpu::EOR_INY() {
-  addr = FetchAddressIndirectY(PC,true);
-  A ^= MemReadAccess(addr);
+  address_bus = FetchAddressIndirectY(PC,true);
+  A ^= MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_052() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -1238,18 +1241,18 @@ void Cpu::_052() {
 
 void Cpu::_053() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x01;
   auto orig_val = t;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c ^ t;
   A = t;
@@ -1259,20 +1262,20 @@ void Cpu::_053() {
 
 void Cpu::_054() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   tick();
 }
 
 void Cpu::EOR_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c ^ t;
   A = t;
   P.N = t & 0x80;
@@ -1281,13 +1284,13 @@ void Cpu::EOR_ZPX() {
 
 void Cpu::LSR_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -1295,15 +1298,15 @@ void Cpu::LSR_ZPX() {
 
 void Cpu::_057() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = c ^ t;
   A = t;
@@ -1318,13 +1321,13 @@ void Cpu::CLI() {
 
 void Cpu::EOR_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c ^ t;
   A = t;
   P.N = t & 0x80;
@@ -1338,18 +1341,18 @@ void Cpu::_05A() {
 
 void Cpu::_05B() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   P.C = t & 0x01;
   auto orig_val = t;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c ^ t;
   A = t;
@@ -1359,22 +1362,22 @@ void Cpu::_05B() {
 
 void Cpu::_05C() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   tick();
 }
 
 void Cpu::EOR_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c ^ t;
   A = t;
   P.N = t & 0x80;
@@ -1382,25 +1385,25 @@ void Cpu::EOR_ABX() {
 }
 
 void Cpu::LSR_ABX() {
-  addr = FetchAddressAbsoluteX(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsoluteX(PC);
+  auto orig_val = MemReadAccess(address_bus);
   P.C = orig_val & 0x01;
   auto mod_val = (orig_val >> 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
 }
 
 void Cpu::_05F() {
-  addr = FetchAddressAbsoluteX(PC);
+  address_bus = FetchAddressAbsoluteX(PC);
   unsigned c = A; 
-  auto orig_val = MemReadAccess(addr);
+  auto orig_val = MemReadAccess(address_bus);
   P.C = orig_val & 0x01;
   auto mod_val = (orig_val >> 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   mod_val = c ^ mod_val;
   A = mod_val;
@@ -1418,12 +1421,12 @@ void Cpu::RTS_IMP() {
 
 void Cpu::ADC_INX() {
   unsigned  t=0xFF, c=0;
-  /*addr = MemReadAccess(PC++);
+  /*address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));*/
-  addr = FetchAddressIndirectX(PC);
-  t = MemReadAccess(addr);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));*/
+  address_bus = FetchAddressIndirectX(PC);
+  t = MemReadAccess(address_bus);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
   P.N = t & 0x80;
@@ -1444,17 +1447,17 @@ void Cpu::_062() {
 
 void Cpu::_063() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x01;
   auto orig_val = t;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -1464,14 +1467,14 @@ void Cpu::_063() {
 
 void Cpu::_064() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   tick();
 }
 
 void Cpu::ADC_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
   P.N = t & 0x80;
@@ -1480,12 +1483,12 @@ void Cpu::ADC_ZPG() {
 
 void Cpu::ROR_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -1493,12 +1496,12 @@ void Cpu::ROR_ZPG() {
 
 void Cpu::_067() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -1550,17 +1553,17 @@ void Cpu::_06B() {
 
 void Cpu::JMP_IND() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  PC = addr;
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  PC = address_bus;
 }
 
 void Cpu::ADC_ABS() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
   P.N = t & 0x80;
@@ -1569,13 +1572,13 @@ void Cpu::ADC_ABS() {
 
 void Cpu::ROR_ABS() {
   //unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = FetchAddressAbsolute(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsolute(PC);
+  auto orig_val = MemReadAccess(address_bus);
   unsigned sb = P.C;
   P.C = orig_val & 0x01;
   auto mod_val = (orig_val >> 1) | (sb * 0x80);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
@@ -1583,13 +1586,13 @@ void Cpu::ROR_ABS() {
 
 void Cpu::_06F() {
   //unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = FetchAddressAbsolute(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsolute(PC);
+  auto orig_val = MemReadAccess(address_bus);
   unsigned sb = P.C;
   P.C = orig_val & 0x01;
   auto mod_val = (orig_val >> 1) | (sb * 0x80);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   unsigned c = mod_val; 
   mod_val += A + P.C; 
@@ -1602,19 +1605,19 @@ void Cpu::_06F() {
 
 void Cpu::BVS_REL() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= P.raw|pbits; c = t;
   t = 1;
   t <<= 2;
   t <<= 4;
   t = c & t;
-  if(t) { tick(); Misfire(PC, addr = int8_t(addr) + PC); PC=addr; };
+  if(t) { tick(); Misfire(PC, address_bus = int8_t(address_bus) + PC); PC=address_bus; };
 }
 
 void Cpu::ADC_INY() {
   unsigned t,c;
-  addr = FetchAddressIndirectY(PC,true);
-  t = MemReadAccess(addr);
+  address_bus = FetchAddressIndirectY(PC,true);
+  t = MemReadAccess(address_bus);
   c = t; 
   t += A + P.C; 
   P.V = (c^t) & (A^t) & 0x80; 
@@ -1626,15 +1629,15 @@ void Cpu::ADC_INY() {
 
 void Cpu::_072() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -1642,17 +1645,17 @@ void Cpu::_072() {
 
 void Cpu::_073() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x01;
   auto orig_val = t;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -1662,18 +1665,18 @@ void Cpu::_073() {
 
 void Cpu::_074() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   tick();
 }
 
 void Cpu::ADC_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
   P.N = t & 0x80;
@@ -1682,14 +1685,14 @@ void Cpu::ADC_ZPX() {
 
 void Cpu::ROR_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -1697,14 +1700,14 @@ void Cpu::ROR_ZPX() {
 
 void Cpu::_077() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x01;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -1719,11 +1722,11 @@ void Cpu::SEI() {
 
 void Cpu::ADC_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
   P.N = t & 0x80;
@@ -1737,17 +1740,17 @@ void Cpu::_07A() {
 
 void Cpu::_07B() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   sb = P.C;
   P.C = t & 0x01;
   auto orig_val = t;
   t = (t >> 1) | (sb * 0x80);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -1757,20 +1760,20 @@ void Cpu::_07B() {
 
 void Cpu::_07C() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   tick();
 }
 
 void Cpu::ADC_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
   P.N = t & 0x80;
@@ -1779,31 +1782,31 @@ void Cpu::ADC_ABX() {
 
 void Cpu::ROR_ABX() {
   /*unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); 
-  addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));*/
-  addr = FetchAddressAbsoluteX(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus =uint8_t(address_bus); 
+  address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));*/
+  address_bus = FetchAddressAbsoluteX(PC);
+  auto orig_val = MemReadAccess(address_bus);
   unsigned sb = P.C;
   P.C = orig_val & 0x01;
   auto mod_val = (orig_val >> 1) | (sb * 0x80);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
 }
 
 void Cpu::_07F() {
-  addr = FetchAddressAbsoluteX(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsoluteX(PC);
+  auto orig_val = MemReadAccess(address_bus);
   unsigned sb = P.C;
   P.C = orig_val & 0x01;
   auto mod_val = (orig_val >> 1) | (sb * 0x80);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   unsigned c = mod_val; 
   mod_val += A + P.C; 
@@ -1821,8 +1824,8 @@ void Cpu::_080() {
 }
 
 void Cpu::STA_INX() {
-  addr = FetchAddressIndirectX(PC);
-  MemWriteAccess(addr, A);
+  address_bus = FetchAddressIndirectX(PC);
+  MemWriteAccess(address_bus, A);
 }
 
 void Cpu::_082() {
@@ -1832,42 +1835,42 @@ void Cpu::_082() {
 
 void Cpu::_083() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
   t &= A;
   t &= X;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::STY_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= Y;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::STA_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::STX_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= X;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::_087() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   t &= X;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::DEY_IMP() {
@@ -1906,108 +1909,108 @@ void Cpu::_08B() {
 }
 
 void Cpu::STY_ABS() {
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemWriteAccess(addr, Y);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemWriteAccess(address_bus, Y);
 }
 
 void Cpu::STA_ABS() {
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemWriteAccess(addr, A);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemWriteAccess(address_bus, A);
 }
 
 void Cpu::STX_ABS() {
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemWriteAccess(addr, X);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemWriteAccess(address_bus, X);
 }
 
 void Cpu::_08F() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
   t &= A;
   t &= X;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::BCC_REL() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= P.raw|pbits; c = t;
   t = 1;
   t = c & t;
-  if(!t) { tick(); Misfire(PC, addr = int8_t(addr) + PC); PC=addr; };
+  if(!t) { tick(); Misfire(PC, address_bus = int8_t(address_bus) + PC); PC=address_bus; };
 }
 
 void Cpu::STA_INY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); 
-  addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =MemReadAccess(c=address_bus); 
+  address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::_092() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= X;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::_093() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   t &= X;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::STY_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= Y;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::STA_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= A;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::STX_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= X;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::_097() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= A;
   t &= X;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::TYA_IMP() {
@@ -2021,12 +2024,12 @@ void Cpu::TYA_IMP() {
 
 void Cpu::STA_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::TXS_IMP() {
@@ -2038,55 +2041,55 @@ void Cpu::TXS_IMP() {
 
 void Cpu::_09B() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   t &= X;
-  MemWriteAccess(wrap(addr, addr+d), t &= ((addr+d) >> 8));
+  MemWriteAccess(wrap(address_bus, address_bus+d), t &= ((address_bus+d) >> 8));
   S = t;
 }
 
 void Cpu::_09C() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= Y;
-  MemWriteAccess(wrap(addr, addr+d), t &= ((addr+d) >> 8));
+  MemWriteAccess(wrap(address_bus, address_bus+d), t &= ((address_bus+d) >> 8));
 }
 
 void Cpu::STA_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
 }
 
 void Cpu::_09E() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= X;
-  MemWriteAccess(wrap(addr, addr+d), t &= ((addr+d) >> 8));
+  MemWriteAccess(wrap(address_bus, address_bus+d), t &= ((address_bus+d) >> 8));
 }
 
 void Cpu::_09F() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   t &= X;
-  MemWriteAccess(wrap(addr, addr+d), t &= ((addr+d) >> 8));
+  MemWriteAccess(wrap(address_bus, address_bus+d), t &= ((address_bus+d) >> 8));
 }
 
 void Cpu::LDY_IMM() {
@@ -2098,8 +2101,8 @@ void Cpu::LDY_IMM() {
 }
 
 void Cpu::LDA_INX() {
-  addr = FetchAddressIndirectX(PC);
-  A = MemReadAccess(addr);
+  address_bus = FetchAddressIndirectX(PC);
+  A = MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = A == 0;
 }
@@ -2114,11 +2117,11 @@ void Cpu::LDX_IMM() {
 
 void Cpu::_0A3() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  t &= MemReadAccess(address_bus+d);
   A = t;
   X = t;
   P.N = t & 0x80;
@@ -2127,8 +2130,8 @@ void Cpu::_0A3() {
 
 void Cpu::LDY_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   Y = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2136,8 +2139,8 @@ void Cpu::LDY_ZPG() {
 
 void Cpu::LDA_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   A = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2145,8 +2148,8 @@ void Cpu::LDA_ZPG() {
 
 void Cpu::LDX_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   X = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2154,8 +2157,8 @@ void Cpu::LDX_ZPG() {
 
 void Cpu::_0A7() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   A = t;
   X = t;
   P.N = t & 0x80;
@@ -2199,27 +2202,27 @@ void Cpu::_0AB() {
 
 void Cpu::LDY_ABS() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   Y = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
 }
 
 void Cpu::LDA_ABS() {
-  addr = MemReadAccess(PC++) & 0xFF;
-  addr+=256*MemReadAccess(PC++);
-  A = MemReadAccess(addr);
+  address_bus = MemReadAccess(PC++) & 0xFF;
+  address_bus += 256*MemReadAccess(PC++);
+  A = MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::LDX_ABS() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   X = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2227,9 +2230,9 @@ void Cpu::LDX_ABS() {
 
 void Cpu::_0AF() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   A = t;
   X = t;
   P.N = t & 0x80;
@@ -2238,27 +2241,27 @@ void Cpu::_0AF() {
 
 void Cpu::BCS_REL() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= P.raw|pbits; c = t;
   t = 1;
   t = c & t;
-  if(t) { tick(); Misfire(PC, addr = int8_t(addr) + PC); PC=addr; };
+  if(t) { tick(); Misfire(PC, address_bus = int8_t(address_bus) + PC); PC=address_bus; };
 }
 
 void Cpu::LDA_INY() {
-  addr = FetchAddressIndirectY(PC,true);
-  A = MemReadAccess(addr);
+  address_bus = FetchAddressIndirectY(PC,true);
+  A = MemReadAccess(address_bus);
   P.N = A & 0x80;
   P.Z = uint8_t(A) == 0;
 }
 
 void Cpu::_0B2() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   X = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2266,11 +2269,11 @@ void Cpu::_0B2() {
 
 void Cpu::_0B3() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   A = t;
   X = t;
   P.N = t & 0x80;
@@ -2279,10 +2282,10 @@ void Cpu::_0B3() {
 
 void Cpu::LDY_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   Y = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2290,10 +2293,10 @@ void Cpu::LDY_ZPX() {
 
 void Cpu::LDA_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   A = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2301,10 +2304,10 @@ void Cpu::LDA_ZPX() {
 
 void Cpu::LDX_ZPY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   X = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2312,10 +2315,10 @@ void Cpu::LDX_ZPY() {
 
 void Cpu::_0B7() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   A = t;
   X = t;
   P.N = t & 0x80;
@@ -2336,11 +2339,11 @@ void Cpu::CLV_IMP() {
 
 void Cpu::LDA_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   A = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2357,12 +2360,12 @@ void Cpu::TSX_IMP() {
 
 void Cpu::_0BB() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   t &= S;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   A = t;
   X = t;
   S = t;
@@ -2372,11 +2375,11 @@ void Cpu::_0BB() {
 
 void Cpu::LDY_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   Y = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2384,11 +2387,11 @@ void Cpu::LDY_ABX() {
 
 void Cpu::LDA_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   A = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2396,11 +2399,11 @@ void Cpu::LDA_ABX() {
 
 void Cpu::LDX_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   X = t;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2408,11 +2411,11 @@ void Cpu::LDX_ABY() {
 
 void Cpu::_0BF() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   A = t;
   X = t;
   P.N = t & 0x80;
@@ -2431,13 +2434,13 @@ void Cpu::CPY_IMM() {
 
 void Cpu::CMP_INX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2450,17 +2453,17 @@ void Cpu::_0C2() {
 
 void Cpu::_0C3() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   auto orig_val = t;
   t = uint8_t(t - 1);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
@@ -2469,10 +2472,10 @@ void Cpu::_0C3() {
 
 void Cpu::CPY_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= Y;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2480,10 +2483,10 @@ void Cpu::CPY_ZPG() {
 
 void Cpu::CMP_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2491,10 +2494,10 @@ void Cpu::CMP_ZPG() {
 
 void Cpu::DEC_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t - 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2502,12 +2505,12 @@ void Cpu::DEC_ZPG() {
 
 void Cpu::_0C7() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t - 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
@@ -2558,11 +2561,11 @@ void Cpu::_0CB() {
 
 void Cpu::CPY_ABS() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
   t &= Y;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2570,11 +2573,11 @@ void Cpu::CPY_ABS() {
 
 void Cpu::CMP_ABS() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2582,11 +2585,11 @@ void Cpu::CMP_ABS() {
 
 void Cpu::DEC_ABS() {
   //unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = FetchAddressAbsolute(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsolute(PC);
+  auto orig_val = MemReadAccess(address_bus);
   auto mod_val = uint8_t(orig_val - 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
@@ -2594,14 +2597,14 @@ void Cpu::DEC_ABS() {
 
 void Cpu::_0CF() {
   //unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = FetchAddressAbsolute(PC);
+  address_bus = FetchAddressAbsolute(PC);
   //t &= A;
   unsigned c = A; 
   //t = 0xFF;
-  auto orig_val = MemReadAccess(addr);
+  auto orig_val = MemReadAccess(address_bus);
   auto mod_val = uint8_t(orig_val - 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   auto t = c - mod_val; 
   P.C = ~t & 0x100;
@@ -2612,19 +2615,19 @@ void Cpu::_0CF() {
 void Cpu::BNE_REL() {
 
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= P.raw|pbits; 
   c = t;
   t = 1;
   t <<= 1;
   t = c & t;
-  if(!t) { tick(); Misfire(PC, addr = int8_t(addr) + PC); PC=addr; };
+  if(!t) { tick(); Misfire(PC, address_bus = int8_t(address_bus) + PC); PC=address_bus; };
 }
 
 void Cpu::CMP_INY() {
-  addr = FetchAddressIndirectY(PC,true);
+  address_bus = FetchAddressIndirectY(PC,true);
   unsigned t = 0,c = A;
-  t = MemReadAccess(addr);
+  t = MemReadAccess(address_bus);
   t = c - t;
   P.C = ~t & 0x100;
   P.N = t & 0x80;
@@ -2633,13 +2636,13 @@ void Cpu::CMP_INY() {
 
 void Cpu::_0D2() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t - 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2647,17 +2650,17 @@ void Cpu::_0D2() {
 
 void Cpu::_0D3() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   auto orig_val = t;
   t = uint8_t(t - 1);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
@@ -2666,20 +2669,20 @@ void Cpu::_0D3() {
 
 void Cpu::_0D4() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   tick();
 }
 
 void Cpu::CMP_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2687,12 +2690,12 @@ void Cpu::CMP_ZPX() {
 
 void Cpu::DEC_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t - 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2700,14 +2703,14 @@ void Cpu::DEC_ZPX() {
 
 void Cpu::_0D7() {
   unsigned  d=0, t=0xFF, c=0, sb=0;
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t - 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
@@ -2728,13 +2731,13 @@ void Cpu::CLD_IMP() {
 
 void Cpu::CMP_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0;
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2746,17 +2749,17 @@ void Cpu::_0DA() {
 
 void Cpu::_0DB() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   auto orig_val = t;
   t = uint8_t(t - 1);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
@@ -2765,45 +2768,45 @@ void Cpu::_0DB() {
 
 void Cpu::_0DC() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   tick();
 }
 
 void Cpu::CMP_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   t &= A;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
 }
 
 void Cpu::DEC_ABX() {
-  addr = FetchAddressAbsoluteX(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsoluteX(PC);
+  auto orig_val = MemReadAccess(address_bus);
   auto mod_val = uint8_t(orig_val - 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
 }
 
 void Cpu::_0DF() {
-  addr = FetchAddressAbsoluteX(PC);
+  address_bus = FetchAddressAbsoluteX(PC);
   unsigned c = A;
-  auto orig_val = MemReadAccess(addr);
+  auto orig_val = MemReadAccess(address_bus);
   auto mod_val = uint8_t(orig_val - 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   unsigned t = c - mod_val; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2821,11 +2824,11 @@ void Cpu::CPX_IMM() {
 
 void Cpu::SBC_INX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -2840,15 +2843,15 @@ void Cpu::_0E2() {
 
 void Cpu::_0E3() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  t &= MemReadAccess(address_bus+d);
   auto orig_val = t;
   t = uint8_t(t + 1);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
@@ -2859,10 +2862,10 @@ void Cpu::_0E3() {
 
 void Cpu::CPX_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= X;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2870,8 +2873,8 @@ void Cpu::CPX_ZPG() {
 
 void Cpu::SBC_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -2881,10 +2884,10 @@ void Cpu::SBC_ZPG() {
 
 void Cpu::INC_ZPG() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t + 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2892,10 +2895,10 @@ void Cpu::INC_ZPG() {
 
 void Cpu::_0E7() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t + 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
@@ -2941,11 +2944,11 @@ void Cpu::_0EB() {
 
 void Cpu::CPX_ABS() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
   t &= X;
   c = t; t = 0xFF;
-  t &= MemReadAccess(addr+d);
+  t &= MemReadAccess(address_bus+d);
   t = c - t; P.C = ~t & 0x100;
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -2953,9 +2956,9 @@ void Cpu::CPX_ABS() {
 
 void Cpu::SBC_ABS() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  t &= MemReadAccess(addr+d);
+  address_bus = MemReadAccess(PC++);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -2965,11 +2968,11 @@ void Cpu::SBC_ABS() {
 
 void Cpu::INC_ABS() {
   //unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = FetchAddressAbsolute(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsolute(PC);
+  auto orig_val = MemReadAccess(address_bus);
   auto mod_val = uint8_t(orig_val + 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
@@ -2977,11 +2980,11 @@ void Cpu::INC_ABS() {
 
 void Cpu::_0EF() {
   //unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = FetchAddressAbsolute(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsolute(PC);
+  auto orig_val = MemReadAccess(address_bus);
   auto mod_val = uint8_t(orig_val + 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   unsigned t = uint8_t(~mod_val);
   unsigned c = t; 
@@ -2995,17 +2998,17 @@ void Cpu::_0EF() {
 
 void Cpu::BEQ_REL() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   t &= P.raw|pbits; c = t;
   t = 1;
   t <<= 1;
   t = c & t;
-  if(t) { tick(); Misfire(PC, addr = int8_t(addr) + PC); PC=addr; };
+  if(t) { tick(); Misfire(PC, address_bus = int8_t(address_bus) + PC); PC=address_bus; };
 }
 
 void Cpu::SBC_INY() {
-  addr = FetchAddressIndirectY(PC,true);
-  unsigned c = 0,t = MemReadAccess(addr);
+  address_bus = FetchAddressIndirectY(PC,true);
+  unsigned c = 0,t = MemReadAccess(address_bus);
   t = uint8_t(~t);
   c = t;
   t += A + P.C; 
@@ -3018,13 +3021,13 @@ void Cpu::SBC_INY() {
 
 void Cpu::_0F2() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t + 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -3032,15 +3035,15 @@ void Cpu::_0F2() {
 
 void Cpu::_0F3() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =MemReadAccess(c=address_bus); address_bus += 256*MemReadAccess(wrap(c,c+1));
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   auto orig_val = t;
   t = uint8_t(t + 1);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
@@ -3051,18 +3054,18 @@ void Cpu::_0F3() {
 
 void Cpu::_0F4() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
+  address_bus =uint8_t(address_bus+d); d=0; tick();
   tick();
 }
 
 void Cpu::SBC_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -3072,12 +3075,12 @@ void Cpu::SBC_ZPX() {
 
 void Cpu::INC_ZPX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t + 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   P.N = t & 0x80;
   P.Z = uint8_t(t) == 0;
@@ -3085,12 +3088,12 @@ void Cpu::INC_ZPX() {
 
 void Cpu::_0F7() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr+d); d=0; tick();
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus+d); d=0; tick();
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(t + 1);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, t);
   tick();
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
@@ -3112,11 +3115,11 @@ void Cpu::SED_IMP() {
 
 void Cpu::SBC_ABY() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -3131,15 +3134,15 @@ void Cpu::_0FA() {
 
 void Cpu::_0FB() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = Y;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  MemReadAccess(wrap(addr, addr+d));
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  MemReadAccess(wrap(address_bus, address_bus+d));
+  t &= MemReadAccess(address_bus+d);
   auto orig_val = t;
   t = uint8_t(t + 1);
-  MemWriteAccess(addr+d, orig_val);
-  MemWriteAccess(addr+d, t);
+  MemWriteAccess(address_bus+d, orig_val);
+  MemWriteAccess(address_bus+d, t);
   //tick();
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
@@ -3150,21 +3153,21 @@ void Cpu::_0FB() {
 
 void Cpu::_0FC() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
+  address_bus =uint8_t(address_bus); address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
   tick();
 }
 
 void Cpu::SBC_ABX() {
   unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  addr = MemReadAccess(PC++);
+  address_bus = MemReadAccess(PC++);
   d = X;
-  addr=uint8_t(addr); 
-  addr+=256*MemReadAccess(PC++);
-  Misfire(addr, addr+d);
-  t &= MemReadAccess(addr+d);
+  address_bus =uint8_t(address_bus); 
+  address_bus += 256*MemReadAccess(PC++);
+  Misfire(address_bus, address_bus+d);
+  t &= MemReadAccess(address_bus+d);
   t = uint8_t(~t);
   c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
   A = t;
@@ -3173,22 +3176,22 @@ void Cpu::SBC_ABX() {
 }
 
 void Cpu::INC_ABX() {
-  addr = FetchAddressAbsoluteX(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsoluteX(PC);
+  auto orig_val = MemReadAccess(address_bus);
   auto mod_val = uint8_t(orig_val + 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   P.N = mod_val & 0x80;
   P.Z = uint8_t(mod_val) == 0;
 }
 
 void Cpu::_0FF() {
-  addr = FetchAddressAbsoluteX(PC);
-  auto orig_val = MemReadAccess(addr);
+  address_bus = FetchAddressAbsoluteX(PC);
+  auto orig_val = MemReadAccess(address_bus);
   auto mod_val = uint8_t(orig_val + 1);
-  MemWriteAccess(addr, orig_val);
-  MemWriteAccess(addr, mod_val);
+  MemWriteAccess(address_bus, orig_val);
+  MemWriteAccess(address_bus, mod_val);
   //tick();
   unsigned t = uint8_t(~mod_val);
   unsigned c = t; t += A + P.C; P.V = (c^t) & (A^t) & 0x80; P.C = t & 0x100;
@@ -3197,17 +3200,17 @@ void Cpu::_0FF() {
   P.Z = uint8_t(t) == 0;
 }
 
-void Cpu::_100() {
+void Cpu::NMI() {
   InterruptVector(0xFFFA);
   /*unsigned  d=0, t=0xFF, c=0, sb=0;
-  addr = 0xFFFA;
-  addr=MemReadAccess(c=addr); 
-  addr+=256*MemReadAccess(wrap(c,c+1));
+  address_bus = 0xFFFA;
+  address_bus =MemReadAccess(c=address_bus); 
+  address_bus += 256*MemReadAccess(wrap(c,c+1));
   t &= P.raw|0x20; c = t;
   tick();
   d=PC-1; 
   Push16(d);
-  PC = addr;
+  PC = address_bus;
   Push(t);
   t = 1;
   t <<= 2;
@@ -3215,7 +3218,7 @@ void Cpu::_100() {
   P.raw = t & ~0x30;*/
 }
 
-void Cpu::_101() {
+void Cpu::RESET() {
   
 
   InterruptVector(0xFFFC);
@@ -3225,18 +3228,20 @@ void Cpu::_101() {
     tick();  */
 }
 
-void Cpu::_102() {
-  InterruptVector(0xFFFE);
-  /*unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x20;
-  addr = 0xFFFE;
-  addr=MemReadAccess(c=addr); addr+=256*MemReadAccess(wrap(c,c+1));
-  t &= P.raw|pbits; c = t;
-  tick();
-  d=PC-1; Push(d>>8); Push(d);
-  PC = addr;
-  Push(t);
-  t = 1;
-  t <<= 2;
-  t = c | t;
-  P.raw = t & ~0x30;*/
+void Cpu::IRQ() {
+  MemReadAccess(PC);
+  Push16(PC);
+  P.raw |= 0x20;
+  Push(P.raw & 0xEF);
+  P.I = 1;
+  if (nmi == true && !nmi_edge_detected)
+  {
+    nmi_edge_detected = true;
+    address_bus = FetchAddressMode0(0xFFFA);
+  }
+  else
+  {
+    address_bus = FetchAddressMode0(0xFFFE);
+  }
+  PC = address_bus;
 }

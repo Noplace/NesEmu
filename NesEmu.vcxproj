@@ -86,7 +86,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
-      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExceptionHandling>false</ExceptionHandling>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
@@ -97,6 +97,7 @@
       <CallingConvention>Cdecl</CallingConvention>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
       <AssemblerListingLocation>$(SolutionDir)..\Listing\</AssemblerListingLocation>
+      <FloatingPointExceptions>false</FloatingPointExceptions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>dxguid.lib;dsound.lib;VCOMPD.LIB;%(AdditionalDependencies)</AdditionalDependencies>
@@ -184,7 +185,7 @@
     <ClCompile Include="Code\dialogs\options.cpp" />
     <ClCompile Include="Code\display_window.cpp" />
     <ClCompile Include="Code\emulation\nes\apu\apu.cpp" />
-    <ClCompile Include="Code\emulation\nes\cpu.cpp" />
+    <ClCompile Include="Code\emulation\nes\cpu\cpu.cpp" />
     <ClInclude Include="Code\audio\audio.h" />
     <ClInclude Include="Code\dialogs\options.h" />
     <ClInclude Include="Code\emulation\nes\apu\dmc.h" />
@@ -197,7 +198,7 @@
     <ClCompile Include="Code\emulation\nes\gamepak.cpp" />
     <ClCompile Include="Code\emulation\nes\io.cpp" />
     <ClCompile Include="Code\emulation\nes\nes.cpp" />
-    <ClCompile Include="Code\emulation\nes\ppu.cpp" />
+    <ClCompile Include="Code\emulation\nes\ppu\ppu.cpp" />
     <ClCompile Include="Code\audio\ds.cpp" />
     <ClCompile Include="Code\audio\wasapi.cpp" />
     <ClCompile Include="Code\audio\wave_output.cpp" />
@@ -217,7 +218,7 @@
     <ClInclude Include="Code\debug.h" />
     <ClInclude Include="Code\display_window.h" />
     <ClInclude Include="Code\emulation\nes\apu\apu.h" />
-    <ClInclude Include="Code\emulation\nes\cpu.h" />
+    <ClInclude Include="Code\emulation\nes\cpu\cpu.h" />
     <ClInclude Include="Code\emulation\nes\gamepak.h" />
     <ClInclude Include="Code\emulation\nes\mappers\aorom.h" />
     <ClInclude Include="Code\emulation\nes\mappers\cnrom.h" />
@@ -226,7 +227,7 @@
     <ClInclude Include="Code\emulation\nes\mappers\none.h" />
     <ClInclude Include="Code\emulation\nes\mappers\unrom.h" />
     <ClInclude Include="Code\emulation\nes\nes.h" />
-    <ClInclude Include="Code\emulation\nes\ppu.h" />
+    <ClInclude Include="Code\emulation\nes\ppu\ppu.h" />
     <ClInclude Include="Code\emulation\nes\register_bit.h" />
     <ClInclude Include="Code\audio\wave_output.h" />
     <ClInclude Include="Code\audio\WaveOut.h" />

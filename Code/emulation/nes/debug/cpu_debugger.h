@@ -193,21 +193,27 @@ class CpuDebugger {
   
     auto addressing_mode = Cpu::addressing_modes[cpu->op];
     char ops[32];
-    unsigned __int8 next_byte = cpu->MemReadAccess(inst_pc+1);
+    unsigned addr2 = inst_pc+1;
+    unsigned __int8 next_byte = 0xFF;
+    if(addr2 >= 0 && addr2 < 0x1FFF) { 
+      next_byte = cpu->RAM[addr2 & 0x7FF];
+    }
+
+
     sprintf(ops,"");
     if (addressing_mode == kImmediate)
       sprintf(ops,"#%02x",next_byte);
     if (addressing_mode == kZeroPage || addressing_mode == kAbsolute)
-      sprintf(ops,"%04x",cpu->addr);
+      sprintf(ops,"%04x",cpu->address_bus);
     if (addressing_mode == kZeroPageX || addressing_mode == kAbsoluteX)
-      sprintf(ops,"%04x,X",cpu->addr);    
+      sprintf(ops,"%04x,X",cpu->address_bus);    
     if (addressing_mode == kZeroPageY || addressing_mode == kAbsoluteY)
-      sprintf(ops,"%04x,Y",cpu->addr);    
+      sprintf(ops,"%04x,Y",cpu->address_bus);    
     
    if (addressing_mode == kIndirectX)
-      sprintf(ops,"(%04x,X)",cpu->addr);    
+      sprintf(ops,"(%04x,X)",cpu->address_bus);    
    if (addressing_mode == kIndirectY)
-      sprintf(ops,"(%04x),Y",cpu->addr);    
+      sprintf(ops,"(%04x),Y",cpu->address_bus);    
              
              
     if (addressing_mode == kRelative)

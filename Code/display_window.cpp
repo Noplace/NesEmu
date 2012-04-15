@@ -7,20 +7,17 @@ void hq2x_filter_render(
   unsigned width, unsigned height
 );
 
-Nes* global_nes;
 
-  namespace IO {
+namespace IO {
   extern HWND window_handle;
-  }
+}
 
 namespace app {
-
 
 DisplayWindow::DisplayWindow() : Window() {
   output = new uint32_t[256*2*240*2];
 //  counter = 0;
   instance = GetModuleHandle(nullptr);
-  global_nes = &nes;
 }
 
 DisplayWindow::~DisplayWindow() {
@@ -112,7 +109,7 @@ void DisplayWindow::Init() {
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_reset\\ram_after_reset.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_timing_test6\\cpu_timing_test.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_interrupts_v2\\rom_singles\\1-cli_latency.nes");
-  //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_interrupts_v2\\rom_singles\\2-nmi_and_brk.nes");
+  nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_interrupts_v2\\rom_singles\\2-nmi_and_brk.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_interrupts_v2\\cpu_interrupts.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\nestest.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\instr_timing\\instr_timing.nes");
@@ -129,7 +126,7 @@ void DisplayWindow::Init() {
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\apu_reset\\4017_timing.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\apu_reset\\4017_written.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\blargg_apu\\01.len_ctr.nes");
-  nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\blargg_apu\\09.reset_timing.nes");
+  //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\blargg_apu\\09.reset_timing.nes");
   
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\nes_saw\\square_scale.nes");
 
@@ -139,8 +136,8 @@ void DisplayWindow::Init() {
 
   //PPU
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\blargg_ppu_tests\\vram_access.nes");
+  //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\sprite_hit_tests_2005.10.05\\10.timing_order.nes");
   
-
   //MMC1
   //nes.Open("F:\\NESRen\\USA\\Legend of Zelda, The (U) (PRG 0).nes");
   //nes.Open("F:\\NESRen\\Translated\\Captain Tsubasa (J) [T-Eng].nes");
@@ -155,11 +152,11 @@ void DisplayWindow::ResetTiming() {
 
 void DisplayWindow::Step() {
   //if (nes.on == false) return;
-  const double dt =  1000.0f / nes.settings.cpu_freq_hz;//options.cpu_freq(); 0.00058f;//16.667f;
+  const double dt =  1000.0 / nes.settings.cpu_freq_hz;//options.cpu_freq(); 0.00058f;//16.667f;
   timing.current_cycles = timer.GetCurrentCycles();
   double time_span =  (timing.current_cycles - timing.prev_cycles) * timer.resolution();
-  if (time_span > 250.0f) //clamping time
-    time_span = 250.0f;
+  if (time_span > 250.0) //clamping time
+    time_span = 250.0;
 
   timing.span_accumulator += time_span;
   while (timing.span_accumulator >= dt) {
@@ -174,7 +171,7 @@ void DisplayWindow::Step() {
   //timing.render_time_span += time_span;
   //++timing.fps_counter;
   timing.fps_time_span += time_span;
-  if (timing.fps_time_span >= 1000) {
+  if (timing.fps_time_span >= 1000.0) {
     timing.fps = timing.fps_counter;
     timing.fps_counter = 0;
     timing.fps_time_span = 0;

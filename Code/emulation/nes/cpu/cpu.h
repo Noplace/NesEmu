@@ -21,27 +21,16 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
 {
  friend CpuDebugger;
  public:
-  struct {
-    uint16_t location;
-    uint8_t delay;
-  } iq[20];
-  int iq_count;
-  void push_iq(uint16_t l,uint8_t d) {
-    iq[iq_count].location = l;
-    iq[iq_count].delay = d;
-    ++iq_count;
-  }
-
   uint8_t* RAM;
-  bool reset, nmi, nmi_edge_detected;
-  // CPU registers:
+  double frequency_mhz_;
+  uint64_t last_cpu_cycles_;
+  uint64_t cycles_per_second;
+  uint64_t cycles;
   uint16_t PC;
-  uint8_t A,X,Y,S;
-  uint32_t addr; //read address
-  uint16_t read_address;
-  uint16_t write_address;
-
-  union /* Status flags: */
+  uint16_t address_bus;
+  uint8_t  A,X,Y,S;
+  uint8_t current_inst_cycles;
+  union
   {
       uint8_t raw;
       struct {
@@ -54,25 +43,11 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
         bool V:1;
         bool N:1;
       };
-      /*RegisterBit<0> C; // carry
-      RegisterBit<1> Z; // zero
-      RegisterBit<2> I; // interrupt enable/disable
-      RegisterBit<3> D; // decimal mode (unsupported on NES, but flag exists)
-      // 4,5 (0x10,0x20) don't exist
-      RegisterBit<4,2> BRK; // overflow
-      RegisterBit<6> V; // overflow
-      RegisterBit<7> N; // negative*/
   } P;
-
-  //timing
-  double frequency_mhz_;
-  uint64_t last_cpu_cycles_;
-  uint64_t cycles_per_second;
-  uint64_t cycles;
-  uint8_t current_inst_cycles;
+  bool reset, nmi, nmi_edge_detected;
   
-  Cpu();
 
+  Cpu();
   int Initialize(Nes* nes);
   int Deinitialize();
   void Power();
@@ -81,10 +56,7 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   void Op();
   uint8_t MemReadAccess(uint16_t addr);
   void MemWriteAccess(uint16_t address, uint8_t value);
-  void Irq() {
-    _102();
-  }
-  void Nmi() {
+  void RaiseNmi() {
     nmi = true;
     nmi_edge_detected = false;
   }
@@ -98,7 +70,7 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   typedef uint16_t (Cpu::*FetchAddressMode)(uint16_t);
   typedef void (Cpu::*Instruction)();
   static AddressingModes addressing_modes[256];
-  Instruction instructions[0x108];
+  Instruction instructions[0x100];
   FetchAddressMode fetch_address[13];
   unsigned int op,prev_op;
   bool enable_irq,irq_line;
@@ -162,20 +134,15 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   void InterruptVector(uint16_t int_addr) {
     unsigned c=0;
     unsigned t=0xFF;
-    addr = int_addr;
-    addr=MemReadAccess(c=addr); 
-    addr+=256*MemReadAccess(wrap(c,c+1));
-    tick();
+    MemReadAccess(PC);
+    PushPC();
     P.raw |= 0x20;
-    //t &= P.raw|(prev_op==0?0x30:0x20);// c = t;
-    Push16(PC);//+(op?-1:1));
-    PC = addr;
     Push(P.raw & 0xEF);
-    //if (prev_op == 0) {
-    //  P.Z = P.I = 0;
-    //} else {
-      P.I = 1;
-    //}
+    P.I = 1;
+    address_bus = int_addr;
+    address_bus =MemReadAccess(c=address_bus); 
+    address_bus+=256*MemReadAccess(wrap(c,c+1));
+    PC = address_bus;
   }
 
   void BRK();
@@ -434,7 +401,7 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   void SBC_ABX();
   void INC_ABX();
   void _0FF();
-  void _100();
-  void _101();
-  void _102();
+  void NMI();
+  void RESET();
+  void IRQ();
 };

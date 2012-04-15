@@ -123,15 +123,32 @@ int Apu::Initialize(Nes* nes) {
 
 void Apu::Power() {
   last_4017_value = 0;
-  Reset();
-}
-
-void Apu::Reset() {
   memset(&square1,0,sizeof(square1));
   memset(&square2,0,sizeof(square2));
   memset(&triangle,0,sizeof(triangle));
   memset(&noise,0,sizeof(noise));
   memset(&dmc,0,sizeof(dmc));
+  tick_counter = tick_table[0][0].ticks;
+  frame_step = 0;
+  cycles = 0;
+  frame_interrupt = false;
+  sequencer_mode = false;
+  interrupt_inhibit = true; 
+  sample_counter = 0;
+  for (int i =0;i<10;++i) {
+    cpu->MemWriteAccess(0x4017,last_4017_value);
+    ++cycles;
+    ++tick_counter;
+  }
+}
+
+void Apu::Reset() {
+  square1.enabled = false;
+  square2.enabled = false;
+  triangle.enabled = false;
+  noise.enabled = false;
+  dmc.enabled = false;
+  dmc.irq = false;
   tick_counter = tick_table[0][0].ticks;
   frame_step = 0;
   cycles = 0;

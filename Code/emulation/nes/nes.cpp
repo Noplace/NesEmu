@@ -96,7 +96,7 @@ double Nes::Step(double dt) {
   cpu_.Op();
   register auto t = dt*cpu_.current_inst_cycles;
   time_acc_ += t;
-  if (time_acc_ > 1000.0f) {
+  if (time_acc_ > 1000.0) {
     cpu_.cycles_per_second = cpu_.cycles - cpu_.last_cpu_cycles_;
     cpu_.frequency_mhz_ = double( cpu_.cycles_per_second ) * 0.000001f;
     cpu_.last_cpu_cycles_ = cpu_.cycles;

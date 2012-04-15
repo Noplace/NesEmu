@@ -1,4 +1,4 @@
-#include "nes.h"
+#include "../nes.h"
 
 //extern RGBQUAD palette2[64];
 extern uint32_t palette1[64];
@@ -127,8 +127,9 @@ void Ppu::Write(uint16_t address,uint8_t data) {
         case 6: 
             if(offset_toggle_) { scroll.vaddrlo = data; 
               vaddr.raw = (unsigned) scroll.raw; 
-              //uint16_t addr = vaddr.raw;
-              //nes_->gamepak().mapper->Tick(addr);
+              uint16_t addr = vaddr.raw;
+              //nes_->gamepak().mapper->Tick(0);
+              int a = 1;
             }
             else              { 
               scroll.vaddrhi = data & 0x3F; 
@@ -292,18 +293,17 @@ void Ppu::render_pixel()
             break;
         }
     pixel = palette[ (attr*4 + pixel) & 0x1F ] & (reg.Grayscale ? 0x30 : 0x3F);
-    //IO::PutPixel(x, scanline, pixel | (reg.EmpRGB << 6), cycle_counter);
+    //nes_->frame_buffer[scanline * 256 + x] = 0xff000000|IO::PutPixel(x, scanline, pixel | (reg.EmpRGB << 6), cycle_counter);
         
     //auto pal_pixel = IO::PutPixel(x, scanline, pixel | (reg.EmpRGB << 6), cycle_counter);
-    
     //auto pal_pixel = IO::MakeRGBcolor((pixel | (reg.EmpRGB << 6))&0x3f); 
     auto pal_pixel = ::palette1[(pixel | (reg.EmpRGB << 6))&0x3f];
+    nes_->frame_buffer[scanline * 256 + x] = 0xff000000|pal_pixel;//(((pal_pixel)&0xff)<<16) | (((pal_pixel>>8)&0xff)<<8) | ((pal_pixel>>16)&0xff);
     //palette[offset][prev%64][pixel];
     //auto pal_pixel = palette2[(pixel | (reg.EmpRGB << 6))&0x3f];//palette[offset][prev%64][pixel];
     //buf[scanline * 256 + x].rgbRed = (pal_pixel>>16)&0xff;
     //buf[scanline * 256 + x].rgbGreen = (pal_pixel>>8)&0xff;
     //buf[scanline * 256 + x].rgbBlue = (pal_pixel)&0xff;
-    nes_->frame_buffer[scanline * 256 + x] = 0xff000000|pal_pixel;//(((pal_pixel)&0xff)<<16) | (((pal_pixel>>8)&0xff)<<8) | ((pal_pixel>>16)&0xff);
 }
 
 // PPU::tick() -- This function is called 3 times per each CPU cycle.
@@ -367,16 +367,19 @@ void Ppu::TickNTSC() {
     if(++cycle_counter == 3) 
       cycle_counter = 0; // For NTSC pixel shifting
 
-    //required for timing test pass
-    if (scanline == 260 && x == 328) {
+    //required for timing test pass *Hack fix*
+    if (scanline == 260 && x >= 328 && x <= 339) {
       reg.SP0hit = false;
     }
     if(++x == scanline_end) {
       // Begin new scanline
       //IO::FlushScanline(scanline);
       if(scanline == 239) {
+        
         nes_->on_render();
       }
+     
+        
       scanline_end = 341;
       x            = 0;
       // Does something special happen on the new scanline?
@@ -386,6 +389,7 @@ void Ppu::TickNTSC() {
           even_odd_toggle = !even_odd_toggle;
           // Clear vblank flag
           VBlankState = -5;
+          ;
           break;
 
         case 241: // Begin of vertical blanking
@@ -395,6 +399,7 @@ void Ppu::TickNTSC() {
           break;
       }
     }
+    ++cycles;
   }
 }
 
@@ -421,7 +426,7 @@ void Ppu::TickPAL() {
     if(scanline < 240) {
         /* Process graphics for this cycle */
         if(reg.ShowBGSP) {
-          nes_->gamepak().mapper->Tick(0);
+          //nes_->gamepak().mapper->Tick(0);
           rendering_tick();
         }
         if(scanline >= 0 && x < 256) 

@@ -66,7 +66,7 @@ class MMC3 : public GamePak::MemoryMapper {
       //irq_counter = irq_latch_reg;
       //disable irq
       irq_enabled = false;
-      gamepak.nes().cpu().RaiseIRQLine();
+      //gamepak.nes().cpu().RaiseIRQLine();
     }
 
     if (address == 0xE001) {

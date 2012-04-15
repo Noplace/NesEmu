@@ -59,8 +59,8 @@ struct Pulse {
       return S;
     if(wl < 8) 
       return S = 0;//8
-
-    return S = (0xF33C0C04u & (1u << (++phase % 8 + reg0.duty_cycle * 8))) ? volume : 0;
+    
+    return S = (0x9F786040u & (1u << (++phase % 8 + reg0.duty_cycle * 8))) ? volume : 0;
   }
      
   void Clock(bool length_tick,bool sweep_tick,bool envelope_tick) {

@@ -52,12 +52,6 @@
     <ClCompile Include="Code\emulation\nes\io.cpp">
       <Filter>Code</Filter>
     </ClCompile>
-    <ClCompile Include="Code\emulation\nes\cpu.cpp">
-      <Filter>Code</Filter>
-    </ClCompile>
-    <ClCompile Include="Code\emulation\nes\ppu.cpp">
-      <Filter>Code</Filter>
-    </ClCompile>
     <ClCompile Include="Code\emulation\nes\nes.cpp">
       <Filter>Code</Filter>
     </ClCompile>
@@ -88,6 +82,12 @@
     <ClCompile Include="Code\audio\WaveOut.cpp">
       <Filter>Code</Filter>
     </ClCompile>
+    <ClCompile Include="Code\emulation\nes\cpu\cpu.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\emulation\nes\ppu\ppu.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Code\application.h">
@@ -101,8 +101,6 @@
     </ClInclude>
     <ClInclude Include="Code\emulation\nes\nes.h" />
     <ClInclude Include="Code\emulation\nes\register_bit.h" />
-    <ClInclude Include="Code\emulation\nes\cpu.h" />
-    <ClInclude Include="Code\emulation\nes\ppu.h" />
     <ClInclude Include="Code\emulation\nes\gamepak.h" />
     <ClInclude Include="Code\graphics\gdi.h">
       <Filter>Code\graphics</Filter>
@@ -133,6 +131,8 @@
     <ClInclude Include="Code\audio\WaveOut.h" />
     <ClInclude Include="Code\audio\audio_interface.h" />
     <ClInclude Include="Code\audio\audio.h" />
+    <ClInclude Include="Code\emulation\nes\cpu\cpu.h" />
+    <ClInclude Include="Code\emulation\nes\ppu\ppu.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Code\resource.rc" />
