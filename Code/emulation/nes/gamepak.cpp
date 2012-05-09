@@ -88,7 +88,7 @@ int GamePak::InternalInitialize() {
     case 1:   mapper = new MMC1(*this);      break;
     case 2:   mapper = new UNROM(*this);     break;
     case 3:   mapper = new CNROM(*this);     break;
-    case 4:   mapper = new MMC3(*this);      break;
+    case MMC3::number:   mapper = new MMC3(*this);      break;
     case 7:   mapper = new AOROM(*this);      break;
     default:
       mapper = nullptr;

@@ -25,7 +25,10 @@ class NoMapper : public GamePak::MemoryMapper {
   }
 
 
-  void Tick(uint32_t address) {
+  void CpuTick() {
+
+  }
+  void PpuTick() {
 
   }
 };

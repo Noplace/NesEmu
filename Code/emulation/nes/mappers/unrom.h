@@ -16,7 +16,10 @@ class UNROM : public GamePak::MemoryMapper {
     gamepak.SwitchPrgRom(data,0x8000,16);
   }
 
-  void Tick(uint32_t address) {
+  void CpuTick() {
+
+  }
+  void PpuTick() {
 
   }
  private:

@@ -15,6 +15,14 @@ class Apu : public Component /* Audio Processing Unit */
   void Write(uint16_t address, uint8_t value);
   void Tick();
   void OnSettingsChanged();
+  void StartupRoutine() {
+    for (int i =0;i<10;++i) {
+      cpu->MemWriteAccess(0x4017,last_4017_value_);
+      ++cycles;
+      ++tick_counter;
+    }
+  }
+  uint8_t last_4017_value() { return last_4017_value_; };
  protected:
   struct TickLine {
     uint32_t ticks;
@@ -38,7 +46,7 @@ class Apu : public Component /* Audio Processing Unit */
   uint32_t sample_ratio;
   uint32_t tick_counter;
   uint8_t  frame_step;
-  uint8_t last_4017_value;
+  uint8_t last_4017_value_;
   bool sequencer_mode;
   bool interrupt_inhibit;
   bool frame_interrupt;

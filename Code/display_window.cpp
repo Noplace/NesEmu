@@ -109,7 +109,7 @@ void DisplayWindow::Init() {
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_reset\\ram_after_reset.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_timing_test6\\cpu_timing_test.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_interrupts_v2\\rom_singles\\1-cli_latency.nes");
-  nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_interrupts_v2\\rom_singles\\2-nmi_and_brk.nes");
+  //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_interrupts_v2\\rom_singles\\2-nmi_and_brk.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_interrupts_v2\\cpu_interrupts.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\nestest.nes");
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\instr_timing\\instr_timing.nes");
@@ -132,6 +132,7 @@ void DisplayWindow::Init() {
 
   //MMC3
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\mmc3_irq_tests\\1.Clocking.nes");
+  nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\mmc3_test_2\\rom_singles\\1-clocking.nes");
   //nes.Open("F:\\NESRen\\Pirate\\Captain Tsubasa Vol 2 - Super Striker (J) [p1].nes");
 
   //PPU

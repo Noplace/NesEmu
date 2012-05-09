@@ -20,8 +20,10 @@ class CNROM : public GamePak::MemoryMapper {
     //gamepak.SwitchPrgRom(data,0x8000,16);
   }
 
+  void CpuTick() {
 
-  void Tick(uint32_t address) {
+  }
+  void PpuTick() {
 
   }
  private:

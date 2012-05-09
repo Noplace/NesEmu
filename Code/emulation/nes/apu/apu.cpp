@@ -122,7 +122,7 @@ int Apu::Initialize(Nes* nes) {
 }
 
 void Apu::Power() {
-  last_4017_value = 0;
+  last_4017_value_ = 0;
   memset(&square1,0,sizeof(square1));
   memset(&square2,0,sizeof(square2));
   memset(&triangle,0,sizeof(triangle));
@@ -135,11 +135,6 @@ void Apu::Power() {
   sequencer_mode = false;
   interrupt_inhibit = true; 
   sample_counter = 0;
-  for (int i =0;i<10;++i) {
-    cpu->MemWriteAccess(0x4017,last_4017_value);
-    ++cycles;
-    ++tick_counter;
-  }
 }
 
 void Apu::Reset() {
@@ -157,7 +152,7 @@ void Apu::Reset() {
   interrupt_inhibit = true; 
   sample_counter = 0;
   for (int i =0;i<10;++i) {
-    cpu->MemWriteAccess(0x4017,last_4017_value);
+    cpu->MemWriteAccess(0x4017,last_4017_value_);
     ++cycles;
     ++tick_counter;
   }
@@ -301,7 +296,7 @@ void Apu::Write(uint16_t address, uint8_t value) {
       #ifdef _DEBUG
         //nes_->log.Channel("apu").Log("at PC %x , apu write 4017 = %x\n",nes_->cpu().PC-1,value);
       #endif
-      last_4017_value = value;
+      last_4017_value_ = value;
       interrupt_inhibit = value & 0x40;
       sequencer_mode  = value & 0x80;
       tick_counter = tick_table[sequencer_mode][0].ticks;

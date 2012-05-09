@@ -77,7 +77,10 @@ class MMC1 : public GamePak::MemoryMapper {
     }
   }
 
-  void Tick(uint32_t address) {
+  void CpuTick() {
+
+  }
+  void PpuTick() {
 
   }
  private:

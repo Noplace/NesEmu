@@ -16,8 +16,10 @@ class AOROM : public GamePak::MemoryMapper {
     //
   }
 
+  void CpuTick() {
 
-  void Tick(uint32_t address) {
+  }
+  void PpuTick() {
 
   }
  private:

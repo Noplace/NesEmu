@@ -57,19 +57,21 @@ void Nes::Deinitialize() {
 }
 
 void Nes::Power() {
-  cpu().Power();
-  apu().Power();
-  ppu().Power();
-  gamepak().mapper->Initialize();
+  cpu_.Power();
+  apu_.Power();
+  ppu_.Power();
+  gamepak_.mapper->Initialize();
   on = true;
+  apu_.StartupRoutine();
 }
 
 void Nes::Reset() {
-  cpu().Reset();
-  apu().Reset();
-  ppu().Reset();
-  gamepak().mapper->Initialize();
+  cpu_.Reset();
+  apu_.Reset();
+  ppu_.Reset();
+  gamepak_.mapper->Initialize();
   on = true;
+  apu_.StartupRoutine();
 }
 
 void Nes::Open(const char* filename) {

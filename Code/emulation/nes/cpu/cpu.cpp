@@ -32,7 +32,7 @@ Cpu::Cpu() :  Component(), reset(false) {
   instructions[0x000] = &Cpu::BRK;     instructions[0x001] = &Cpu::ORA_INX;    instructions[0x002] = &Cpu::_002;    instructions[0x003] = &Cpu::_003; instructions[0x004] = &Cpu::_004;    instructions[0x005] = &Cpu::ORA_ZPG;    instructions[0x006] = &Cpu::ASL1;    instructions[0x007] = &Cpu::_007; instructions[0x008] = &Cpu::PHP;     instructions[0x009] = &Cpu::ORA_IMM;    instructions[0x00A] = &Cpu::ASL2;    instructions[0x00B] = &Cpu::_00B; instructions[0x00C] = &Cpu::_00C;       instructions[0x00D] = &Cpu::ORA_ABS;    instructions[0x00E] = &Cpu::ASL3;    instructions[0x00F] = &Cpu::_00F;
   instructions[0x010] = &Cpu::BPL;     instructions[0x011] = &Cpu::ORA_INY;    instructions[0x012] = &Cpu::_012;    instructions[0x013] = &Cpu::_013; instructions[0x014] = &Cpu::_014;    instructions[0x015] = &Cpu::ORA_ZPX;    instructions[0x016] = &Cpu::ASL4;    instructions[0x017] = &Cpu::_017; instructions[0x018] = &Cpu::CLC;     instructions[0x019] = &Cpu::ORA_ABY;    instructions[0x01A] = &Cpu::_01A;    instructions[0x01B] = &Cpu::_01B; instructions[0x01C] = &Cpu::_01C;       instructions[0x01D] = &Cpu::ORA_ABX;    instructions[0x01E] = &Cpu::ASL5;    instructions[0x01F] = &Cpu::_01F;
   instructions[0x020] = &Cpu::JSR_ABS; instructions[0x021] = &Cpu::AND_INX;    instructions[0x022] = &Cpu::_022;    instructions[0x023] = &Cpu::_023; instructions[0x024] = &Cpu::BIT_ZPG; instructions[0x025] = &Cpu::AND_ZPG; instructions[0x026] = &Cpu::ROL_ZPG; instructions[0x027] = &Cpu::_027; instructions[0x028] = &Cpu::PLP; instructions[0x029] = &Cpu::AND_IMM; instructions[0x02A] = &Cpu::ROL_ACC; instructions[0x02B] = &Cpu::_02B; instructions[0x02C] = &Cpu::BIT_ABS;    instructions[0x02D] = &Cpu::AND_ABS; instructions[0x02E] = &Cpu::ROL_ABS; instructions[0x02F] = &Cpu::_02F;
-  instructions[0x030] = &Cpu::BMI_REL; instructions[0x031] = &Cpu::AND_INY;    instructions[0x032] = &Cpu::_032;    instructions[0x033] = &Cpu::_033; instructions[0x034] = &Cpu::_034;    instructions[0x035] = &Cpu::AND_ZPX; instructions[0x036] = &Cpu::ROL_ZPX; instructions[0x037] = &Cpu::_037; instructions[0x038] = &Cpu::SEC_IMP; instructions[0x039] = &Cpu::AND_ABY; instructions[0x03A] = &Cpu::_03A;    instructions[0x03B] = &Cpu::_03B; instructions[0x03C] = &Cpu::_03C;       instructions[0x03D] = &Cpu::AND_ABX; instructions[0x03E] = &Cpu::ROL_ABX; instructions[0x03F] = &Cpu::_03F;
+  instructions[0x030] = &Cpu::BMI_REL; instructions[0x031] = &Cpu::AND_INY;    instructions[0x032] = &Cpu::_032;    instructions[0x033] = &Cpu::_033; instructions[0x034] = &Cpu::_034;    instructions[0x035] = &Cpu::AND_ZPX; instructions[0x036] = &Cpu::ROL_ZPX; instructions[0x037] = &Cpu::_037; instructions[0x038] = &Cpu::SEC; instructions[0x039] = &Cpu::AND_ABY; instructions[0x03A] = &Cpu::_03A;    instructions[0x03B] = &Cpu::_03B; instructions[0x03C] = &Cpu::_03C;       instructions[0x03D] = &Cpu::AND_ABX; instructions[0x03E] = &Cpu::ROL_ABX; instructions[0x03F] = &Cpu::_03F;
   instructions[0x040] = &Cpu::RTI_IMP; instructions[0x041] = &Cpu::EOR_INX;    instructions[0x042] = &Cpu::_042;    instructions[0x043] = &Cpu::_043; instructions[0x044] = &Cpu::_044;    instructions[0x045] = &Cpu::EOR_ZPG; instructions[0x046] = &Cpu::LSR_ZPG; instructions[0x047] = &Cpu::_047; instructions[0x048] = &Cpu::PHA; instructions[0x049] = &Cpu::EOR_IMM; instructions[0x04A] = &Cpu::LSR_ACC; instructions[0x04B] = &Cpu::_04B; instructions[0x04C] = &Cpu::JMP_ABS;    instructions[0x04D] = &Cpu::EOR_ABS; instructions[0x04E] = &Cpu::LSR_ABS; instructions[0x04F] = &Cpu::_04F;
   instructions[0x050] = &Cpu::BVC_REL; instructions[0x051] = &Cpu::EOR_INY;    instructions[0x052] = &Cpu::_052;    instructions[0x053] = &Cpu::_053; instructions[0x054] = &Cpu::_054;    instructions[0x055] = &Cpu::EOR_ZPX; instructions[0x056] = &Cpu::LSR_ZPX; instructions[0x057] = &Cpu::_057; instructions[0x058] = &Cpu::CLI; instructions[0x059] = &Cpu::EOR_ABY; instructions[0x05A] = &Cpu::_05A;    instructions[0x05B] = &Cpu::_05B; instructions[0x05C] = &Cpu::_05C;       instructions[0x05D] = &Cpu::EOR_ABX; instructions[0x05E] = &Cpu::LSR_ABX; instructions[0x05F] = &Cpu::_05F;
   instructions[0x060] = &Cpu::RTS_IMP; instructions[0x061] = &Cpu::ADC_INX;    instructions[0x062] = &Cpu::_062;    instructions[0x063] = &Cpu::_063; instructions[0x064] = &Cpu::_064;    instructions[0x065] = &Cpu::ADC_ZPG; instructions[0x066] = &Cpu::ROR_ZPG; instructions[0x067] = &Cpu::_067; instructions[0x068] = &Cpu::PLA_IMP; instructions[0x069] = &Cpu::ADC_IMM; instructions[0x06A] = &Cpu::ROR_ACC; instructions[0x06B] = &Cpu::_06B; instructions[0x06C] = &Cpu::JMP_IND;    instructions[0x06D] = &Cpu::ADC_ABS; instructions[0x06E] = &Cpu::ROR_ABS; instructions[0x06F] = &Cpu::_06F;
@@ -111,7 +111,7 @@ __forceinline void Cpu::tick() {
 
   nes_->ppu().Tick();
   nes_->apu().Tick();
-  nes_->gamepak().mapper->Tick(0);
+  nes_->gamepak().mapper->CpuTick();
   enable_irq = irq_line & !P.I;
  
   ++cycles;
@@ -221,6 +221,7 @@ void Cpu::BRK() {
   t.raw = P.raw|0x30; 
   PushPC();
   Push(t.raw);
+  P.I = 1;
   if (nmi == true && !nmi_edge_detected)
   {
     nmi_edge_detected = true;
@@ -230,7 +231,6 @@ void Cpu::BRK() {
   {
     PC = FetchAddressMode0(0xFFFE);
   }
-  P.I = 1;
 }
 
 void Cpu::ORA_INX() {
@@ -270,7 +270,6 @@ void Cpu::_003() {
   t = (t << 1) | (sb * 0x01);
   MemWriteAccess(address_bus+d, orig_val);
   MemWriteAccess(address_bus+d, t);
-  //tick();
   t = c | t;
   A = t;
   P.N = t & 0x80;
@@ -926,13 +925,14 @@ void Cpu::_037() {
   P.Z = uint8_t(t) == 0;
 }
 
-void Cpu::SEC_IMP() {
-  unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
-  t &= P.raw|pbits; c = t;
+void Cpu::SEC() {
+  //unsigned  d=0, t=0xFF, c=0, sb=0, pbits =  0x30;//0x20 for op > 0x100
+  //t &= P.raw|pbits; c = t;
   tick();
-  t = 1;
+  /*t = 1;
   t = c | t;
-  P.raw = t & ~0x30;
+  P.raw = t & ~0x30;*/
+  P.C = 1;
 }
 
 void Cpu::AND_ABY() {

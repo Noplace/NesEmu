@@ -128,7 +128,7 @@ void Ppu::Write(uint16_t address,uint8_t data) {
             if(offset_toggle_) { scroll.vaddrlo = data; 
               vaddr.raw = (unsigned) scroll.raw; 
               uint16_t addr = vaddr.raw;
-              //nes_->gamepak().mapper->Tick(0);
+              //nes_->gamepak().mapper->PpuTick();
               int a = 1;
             }
             else              { 
@@ -356,7 +356,7 @@ void Ppu::TickNTSC() {
     if(scanline < 240) {
         /* Process graphics for this cycle */
         if(reg.ShowBGSP) {
-          nes_->gamepak().mapper->Tick(0);
+          //nes_->gamepak().mapper->Tick(0);
           rendering_tick();
         }
         if(scanline >= 0 && x < 256) 
@@ -399,6 +399,7 @@ void Ppu::TickNTSC() {
           break;
       }
     }
+    nes_->gamepak().mapper->PpuTick();
     ++cycles;
   }
 }
@@ -457,6 +458,7 @@ void Ppu::TickPAL() {
           break;
       }
     }
+    nes_->gamepak().mapper->PpuTick();
     ++cycles;
   }
 }

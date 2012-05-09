@@ -8,7 +8,8 @@ class GamePak : public Component
     ~MemoryMapper() {}
     virtual void Initialize() = 0;
     virtual void Write(uint16_t address,uint8_t data) = 0;
-    virtual void Tick(uint32_t) = 0;
+    virtual void CpuTick() = 0;
+    virtual void PpuTick() = 0;
    protected:
     GamePak& gamepak;
   };

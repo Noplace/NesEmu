@@ -66,6 +66,9 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   void LowerIRQLine() {
     irq_line = false;
   }
+  void InduceIRQ() {
+    IRQ();
+  }
  protected:
   typedef uint16_t (Cpu::*FetchAddressMode)(uint16_t);
   typedef void (Cpu::*Instruction)();
@@ -130,7 +133,6 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
     Misfire(r, r+Y);
     return r+Y;
   }
-  
   void InterruptVector(uint16_t int_addr) {
     unsigned c=0;
     unsigned t=0xFF;
@@ -139,12 +141,9 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
     P.raw |= 0x20;
     Push(P.raw & 0xEF);
     P.I = 1;
-    address_bus = int_addr;
-    address_bus =MemReadAccess(c=address_bus); 
-    address_bus+=256*MemReadAccess(wrap(c,c+1));
+    address_bus = FetchAddressMode0(int_addr);
     PC = address_bus;
-  }
-
+  }  
   void BRK();
   void ORA_INX();
   void _002();
@@ -201,7 +200,7 @@ class Cpu : public Component /* CPU: Ricoh RP2A03 (based on MOS6502, almost the 
   void AND_ZPX();
   void ROL_ZPX();
   void _037();
-  void SEC_IMP();
+  void SEC();
   void AND_ABY();
   void _03A();
   void _03B();
