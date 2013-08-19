@@ -22,8 +22,10 @@ class DisplayWindow: public core::windows::Window {
     int OnCreate(WPARAM wParam,LPARAM lParam);
     int OnDestroy(WPARAM wParam,LPARAM lParam);
     int OnDropFiles(WPARAM wParam,LPARAM lParam);
+    int OnPaint(WPARAM wParam,LPARAM lParam);
   private:
-    bool exit_signal_;
+    std::thread* emu_th;
+    std::atomic_bool exit_signal_;
     int display_mode;
     int machine_mode;
     uint32_t* output;
@@ -33,7 +35,7 @@ class DisplayWindow: public core::windows::Window {
     Nes nes;
     dialogs::Options options;
 
-    utilities::Timer<double> timer;
+    utilities::Timer timer;
     struct {
       uint64_t extra_cycles;
       uint64_t current_cycles;

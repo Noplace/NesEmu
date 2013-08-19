@@ -2,7 +2,8 @@
 #include "nes.h"
 //#include "../../sound/wave_output.h"
 //#include "../../sound/wasapi.h"
-#include "../../audio/audio.h"
+//#include "../../audio/audio.h"
+#include "../../audio2/directsound.h"
 //#include "../../sound/WaveOut.h"
 
 float pal_mul[7][3] = {
@@ -112,7 +113,8 @@ namespace IO
   //HWAVEOUT waveout;
   //CWaveOut wave;
   //WaveOutput wave;
-  audio::DirectSound ds_audio;
+  //audio::DirectSound ds_audio;
+  audio::output::DirectSound audio_;
 
   void Init() {
     memset(&joy1,0,sizeof(joy1));
@@ -137,9 +139,12 @@ namespace IO
     //WASAPI_Initialize(44100,2,16);
     //ds_audio.set_window_handle(window_handle);
     //ds_audio.Initialize(44100,2,16);
+    audio_.set_window_handle(window_handle);
+    audio_.Initialize(44100,2,16);
   }
 
   void Deinit() {
+    audio_.Deinitialize();
     //waveOutClose(waveout);
     //wave.StopPlay();
     //wave.Close();
@@ -163,7 +168,7 @@ namespace IO
     //wave.Write((int8_t*)block,size);
     //WASAPI_WriteData(block,size);
     //ds_audio.Write(block,size);
-
+    audio_.Write(block,size);
   }
 
     unsigned MakeRGBcolor(unsigned pixel) 

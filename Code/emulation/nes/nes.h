@@ -64,6 +64,7 @@ namespace IO
 #include "gamepak.h"
 #include "cpu/cpu.h"
 #include "ppu/ppu.h"
+#include "ppu/ppu2.h"
 #include "apu/apu.h"
 
 class Nes {

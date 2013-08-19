@@ -28,19 +28,23 @@
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>NotSet</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v110</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>NotSet</CharacterSet>
+    <PlatformToolset>v110</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v110</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>NotSet</CharacterSet>
+    <PlatformToolset>v110</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -86,7 +90,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
-      <ExceptionHandling>false</ExceptionHandling>
+      <ExceptionHandling>Sync</ExceptionHandling>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
@@ -181,11 +185,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Code\application.cpp" />
+    <ClCompile Include="Code\audio2\directsound.cpp" />
     <ClCompile Include="Code\console.cpp" />
     <ClCompile Include="Code\dialogs\options.cpp" />
     <ClCompile Include="Code\display_window.cpp" />
     <ClCompile Include="Code\emulation\nes\apu\apu.cpp" />
     <ClCompile Include="Code\emulation\nes\cpu\cpu.cpp" />
+    <ClInclude Include="Code\audio2\directsound.h" />
+    <ClInclude Include="Code\audio2\interface.h" />
     <ClInclude Include="Code\audio\audio.h" />
     <ClInclude Include="Code\dialogs\options.h" />
     <ClInclude Include="Code\emulation\nes\apu\dmc.h" />
@@ -203,6 +210,7 @@
     <ClCompile Include="Code\audio\wasapi.cpp" />
     <ClCompile Include="Code\audio\wave_output.cpp" />
     <ClCompile Include="Code\audio\WaveOut.cpp" />
+    <ClCompile Include="Code\emulation\nes\ppu\ppu2.cpp" />
     <ClCompile Include="Code\graphics\eagle.cpp" />
     <ClCompile Include="Code\graphics\HQ2x.cpp" />
     <ClCompile Include="Code\winmain.cpp" />
@@ -211,6 +219,7 @@
     <ClInclude Include="Code\audio\ds.h" />
     <ClInclude Include="Code\audio\audio_interface.h" />
     <ClInclude Include="Code\audio\wasapi.h" />
+    <ClInclude Include="Code\emulation\nes\ppu\ppu2.h" />
     <ClInclude Include="Code\utilities\ring_buffer.h" />
   </ItemGroup>
   <ItemGroup>

@@ -2,7 +2,7 @@
 #include <windows.h>
 #include <WinCore/types.h>
 #include <mmsystem.h>
-#include <audiodefs.h>
+#include <mmreg.h>
 
 #define		BUF_SIZE_LO	100						//Must be multiples of 100
 #define		BUF_SIZE_HI	5000

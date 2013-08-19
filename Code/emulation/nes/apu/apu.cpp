@@ -1,5 +1,39 @@
 #include "../nes.h"
 
+
+class LowPassFilter {
+ public:  
+  LowPassFilter():y1(0),a0(0),b1(0),cutoff_freq_(0) {
+
+  }
+
+  int Initialize() {
+    y1=0;
+    Update();
+    return S_OK;
+  }
+
+  int Update() {
+    double fc = (cutoff_freq_)/(44100.0);
+    double x = exp(-2*M_PI*fc);
+    a0 = 1 - x;
+    b1 = x;
+    return S_OK;
+  }
+
+  double Tick(double sample) {
+    double y = a0*sample+b1*y1;
+    y1 = y;
+    return y;
+  }
+
+  void set_cutoff_freq(double cutoff_freq) { cutoff_freq_ = cutoff_freq; }
+ protected:
+  double a0,b1,cutoff_freq_;
+  double y1;
+
+};
+
 //2 modes,6 steps (2 extra for 4mode,1extra for 5mode),4 flags(length,sweep,linear,envelope)
 /*const Apu::TickLine Apu::tick_table[2][6]= {
   {
@@ -94,6 +128,8 @@ const uint8_t Apu::length_counters[32] = {
 const uint16_t Noise::noise_periods[16] = { 2,4,8,16,32,48,64,80,101,127,190,254,381,508,1017,2034 };
 const uint16_t DMC::periods[16] = { 428,380,340,320,286,254,226,214,190,160,142,128,106,84,72,54 };
 
+LowPassFilter filter;
+
 Apu::Apu() : Component() , cpu(nullptr),frame_step(0) {
   tick_table[0] = ntsc_tick_table[0];
   tick_table[1] = ntsc_tick_table[1];
@@ -118,6 +154,9 @@ int Apu::Initialize(Nes* nes) {
   cpu = &nes_->cpu();
   frame_step = 0;
   tick_counter = tick_table[0][0].ticks;
+  filter.Initialize();
+  filter.set_cutoff_freq(22100);
+  filter.Update();
   return S_OK;
 }
 
@@ -344,7 +383,8 @@ void Apu::Tick() {
   auto tri_out = tri_table[tindex];
 
   sample_hold = (square_out+tri_out) * 32767.0 ;//*2147483647.0;
-
+  double dsample = (square_out+tri_out) * 32767.0 ;//*2147483647.0;
+    
   auto avg_sample = [](RingBuffer<double>& samples) -> double {
     double res = 0;
     for (int i=0;i<samples.size();++i) {
@@ -354,16 +394,33 @@ void Apu::Tick() {
     return res;
   };
 
+  /*double lpsample = filter.Tick(dsample);
+  static short sbuf[2000]= {0,0};
+  static int si = 0;
+  sbuf[si++] = sbuf[si++] = short(lpsample); //mono to stereo
+
+  if (si == 2000) {
+    IO::writeAudioBlock(sbuf,4000);
+    si = 0;
+  }*/
+
   ++sample_counter;
   if (sample_counter >= sample_ratio) {
-    auto sample = avg_sample(sample_hold);//lowpass_filter.calc(sample_hold);
-    short sbuf[2]= {0,0};
+    auto sample = filter.Tick(dsample);//avg_sample(sample_hold);//lowpass_filter.calc(sample_hold);
+    static short sbuf[8820]= {0,0};
+    static int sindex = 0;
     //int sbuf2[2];
     //sbuf2[0] = sbuf2[1] = int(sample);
-    sbuf[0] = sbuf[1] = short(sample); //mono to stereo
+    sbuf[sindex++] = short(sample);
+    sbuf[sindex++] = short(sample); //mono to stereo
     sample_counter -= sample_ratio;   
-    IO::writeAudioBlock(sbuf,4);
+
+    if (sindex == 8820) {
+      IO::writeAudioBlock(sbuf,8820<<1);
+      sindex = 0;
+    }
   }
+
 }
 
 

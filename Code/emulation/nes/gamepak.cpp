@@ -4,7 +4,7 @@
 #include "mappers/mmc1.h"//1
 #include "mappers/unrom.h"//2
 #include "mappers/cnrom.h"//3
-#include "mappers/mmc3.h"//4
+//#include "mappers/mmc3.h"//4
 #include "mappers/aorom.h"//7
 
 
@@ -88,7 +88,7 @@ int GamePak::InternalInitialize() {
     case 1:   mapper = new MMC1(*this);      break;
     case 2:   mapper = new UNROM(*this);     break;
     case 3:   mapper = new CNROM(*this);     break;
-    case MMC3::number:   mapper = new MMC3(*this);      break;
+    //case MMC3::number:   mapper = new MMC3(*this);      break;
     case 7:   mapper = new AOROM(*this);      break;
     default:
       mapper = nullptr;

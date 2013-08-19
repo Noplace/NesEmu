@@ -3,7 +3,7 @@
 //extern RGBQUAD palette2[64];
 extern uint32_t palette1[64];
 
-Ppu ppu;
+//Ppu ppu;
 
 Ppu::Ppu() : Component() {
   tick_array[0] = &Ppu::TickNTSC;
@@ -143,6 +143,7 @@ void Ppu::Write(uint16_t address,uint8_t data) {
             t = data;
             RefreshOpenBus(t);
             vaddr.raw = vaddr.raw + (reg.Inc ? 32 : 1); // The address is automatically updated.
+
             break;
     }
 }
@@ -295,10 +296,10 @@ void Ppu::render_pixel()
     pixel = palette[ (attr*4 + pixel) & 0x1F ] & (reg.Grayscale ? 0x30 : 0x3F);
     //nes_->frame_buffer[scanline * 256 + x] = 0xff000000|IO::PutPixel(x, scanline, pixel | (reg.EmpRGB << 6), cycle_counter);
         
-    //auto pal_pixel = IO::PutPixel(x, scanline, pixel | (reg.EmpRGB << 6), cycle_counter);
+    auto pal_pixel = IO::PutPixel(x, scanline, pixel | (reg.EmpRGB << 6), cycle_counter);
     //auto pal_pixel = IO::MakeRGBcolor((pixel | (reg.EmpRGB << 6))&0x3f); 
-    auto pal_pixel = ::palette1[(pixel | (reg.EmpRGB << 6))&0x3f];
-    nes_->frame_buffer[scanline * 256 + x] = 0xff000000|pal_pixel;//(((pal_pixel)&0xff)<<16) | (((pal_pixel>>8)&0xff)<<8) | ((pal_pixel>>16)&0xff);
+    //auto pal_pixel = ::palette1[(pixel | (reg.EmpRGB << 6))&0x3f];
+    nes_->frame_buffer[(scanline<<8) + x] = 0xff000000|pal_pixel;//(((pal_pixel)&0xff)<<16) | (((pal_pixel>>8)&0xff)<<8) | ((pal_pixel>>16)&0xff);
     //palette[offset][prev%64][pixel];
     //auto pal_pixel = palette2[(pixel | (reg.EmpRGB << 6))&0x3f];//palette[offset][prev%64][pixel];
     //buf[scanline * 256 + x].rgbRed = (pal_pixel>>16)&0xff;
@@ -339,6 +340,7 @@ void Ppu::Tick() {
 
 void Ppu::TickNTSC() {
   for (auto i=0;i<3;++i) {
+   
     //Set/clear vblank where needed
     switch(VBlankState)  {
         case -5: reg.status = 0;  break;
@@ -382,6 +384,13 @@ void Ppu::TickNTSC() {
         
       scanline_end = 341;
       x            = 0;
+        /*#ifdef _DEBUG
+        {
+          char str[255];
+          sprintf(str,"PPU  scanline done %d\n",scanline);
+          OutputDebugString(str);
+        }
+        #endif*/
       // Does something special happen on the new scanline?
       switch(scanline += 1) {
         case 261: // Begin of rendering
@@ -395,7 +404,13 @@ void Ppu::TickNTSC() {
         case 241: // Begin of vertical blanking
           nes_->on_vertical_blank();
           VBlankState = 2;
-          
+        /*#ifdef _DEBUG
+        {
+          char str[255];
+          sprintf(str,"PPU VB\n");
+          OutputDebugString(str);
+        }
+        #endif   */       
           break;
       }
     }

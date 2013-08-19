@@ -17,6 +17,9 @@ class OpenGL : public Graphics {
   void SetDisplaySize(int width,int height);
   void Clear(RGBQUAD color);
   void Render();
+  void SwitchThread() {
+    wglMakeCurrent( device_context_, render_context_ );
+  }
  private:
   HDC device_context_;
   HGLRC render_context_;

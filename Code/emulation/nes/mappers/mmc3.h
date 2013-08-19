@@ -23,7 +23,7 @@ class MMC3 : public GamePak::MemoryMapper {
     inside_tick = false;
     mmc3_alt_behavior = false;
     last_rise_time = -17; //so it would start from beginning
-    timer = 0;
+    timer = 0;//36;
   }
 
   void Write(uint16_t address,uint8_t data) {
@@ -65,7 +65,7 @@ class MMC3 : public GamePak::MemoryMapper {
     }
 
     if (reg == 2 && odd == true) { //(address == 0xC001) {
-      //irq_counter = 0;
+      irq_counter = 0;
       if ( mmc3_alt_behavior ) 
             irq_reload = true;
       //irq_reload = true;
@@ -118,24 +118,69 @@ class MMC3 : public GamePak::MemoryMapper {
     uint32_t address = gamepak.nes().ppu().address();
     unsigned old_a12 = (last_ppu_addr & 0x1000)>>12; 
     unsigned new_a12 = (address & 0x1000)>>12; 
-
+    last_ppu_addr = address;
+    static int tcounter  =0;
     if (old_a12 == 0 && new_a12 == 1) {
-      if ((timer-last_rise_time)>16) {
+        /*#ifdef _DEBUG
+        {
+          char str[255];
+          sprintf(str,"MMC3 toggle count %d\n",timer);
+          OutputDebugString(str);
+        }
+        #endif*/
+      if (timer == 0) {
         auto old = irq_counter;
         if (irq_counter == 0 || irq_reload)
           irq_counter = irq_latch_reg;
         else
           --irq_counter;
-        if ( (!mmc3_alt_behavior && old != 0 || irq_reload) && irq_counter == 0 && irq_enabled ) 
+        
+        if ( (!mmc3_alt_behavior && old != 0 || irq_reload) && irq_counter == 0 && irq_enabled ) {
             cpu->RaiseIRQLine();
+        }
 
         irq_reload = false;
-        last_rise_time = 0;
-        timer = 0;
+        timer = 16;
       }
-      ++timer;      
+      --timer;  
     }
-    last_ppu_addr = address;
+    /*uint32_t address = gamepak.nes().ppu().address();
+    unsigned old_a12 = (last_ppu_addr & 0x1000)>>12; 
+    unsigned new_a12 = (address & 0x1000)>>12; 
+    static int tcounter  =0;
+    if (old_a12 == 0 && new_a12 == 1) {
+        #ifdef _DEBUG
+        {
+          char str[255];
+          sprintf(str,"MMC3 toggle count %d\n",timer);
+          OutputDebugString(str);
+        }
+        #endif
+      if ((timer)>35) {
+        auto old = irq_counter;
+        if (irq_counter == 0 || irq_reload)
+          irq_counter = irq_latch_reg;
+        else
+          --irq_counter;
+        
+        if ( (!mmc3_alt_behavior && old != 0 || irq_reload) && irq_counter == 0 && irq_enabled ) {
+            cpu->RaiseIRQLine();
+        }
+
+        irq_reload = false;
+        timer = 0;
+        tcounter++;
+        /*#ifdef _DEBUG
+        {
+          char str[255];
+          sprintf(str,"MMC3 scanline count %d\n",tcounter);
+          OutputDebugString(str);
+        }
+        #endif*/
+     /* }
+      ++timer;  
+    }*/
+    //last_ppu_addr = address;
     /*uint32_t address = gamepak.nes().ppu().address();
     unsigned old_a12 = (last_ppu_addr & 0x1000)>>12; 
     unsigned new_a12 = (address & 0x1000)>>12; 

@@ -88,6 +88,12 @@
     <ClCompile Include="Code\emulation\nes\ppu\ppu.cpp">
       <Filter>Code</Filter>
     </ClCompile>
+    <ClCompile Include="Code\audio2\directsound.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
+    <ClCompile Include="Code\emulation\nes\ppu\ppu2.cpp">
+      <Filter>Code</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Code\application.h">
@@ -133,6 +139,9 @@
     <ClInclude Include="Code\audio\audio.h" />
     <ClInclude Include="Code\emulation\nes\cpu\cpu.h" />
     <ClInclude Include="Code\emulation\nes\ppu\ppu.h" />
+    <ClInclude Include="Code\audio2\directsound.h" />
+    <ClInclude Include="Code\audio2\interface.h" />
+    <ClInclude Include="Code\emulation\nes\ppu\ppu2.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Code\resource.rc" />

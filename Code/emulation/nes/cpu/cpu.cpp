@@ -202,7 +202,7 @@ void Cpu::MemWriteAccess(uint16_t address, uint8_t value)  {
       //DMA // OAM DMA: Copy 256 bytes from RAM into PPU's sprite memory
       if (address == 0x4014) {
         for(unsigned b=0; b<256; ++b) {
-          MemWriteAccess(0x2004, MemReadAccess((value&7)*0x0100+b));
+          MemWriteAccess(0x2004, MemReadAccess(((value&7)<<8)+b));
         }
       }
 

@@ -1,11 +1,14 @@
 #include "application.h"
 #include "graphics/eagle.h"
 
+
 void hq2x_filter_render(
   uint32_t *output, unsigned outputPitch,
   const uint32_t *input, unsigned inputPitch,
   unsigned width, unsigned height
 );
+
+
 
 
 namespace IO {
@@ -35,38 +38,8 @@ void DisplayWindow::Init() {
 
   gfx.Initialize(handle(),0,0);
   nes.set_on_render([this]() {
-    switch(display_mode) {
-      case ID_VIDEO_STD256X240:
-        //glDrawPixels(256,240,GL_BGRA_EXT,GL_UNSIGNED_BYTE,nes.frame_buffer);
-        //glEnable(GL_TEXTURE_2D);
-        glBindTexture( GL_TEXTURE_2D, texture );
-        glTexImage2D(GL_TEXTURE_2D,0,4,256,240,0,GL_BGRA_EXT,GL_UNSIGNED_BYTE,nes.frame_buffer);
-        glBegin( GL_QUADS );
-        glTexCoord2d(0.0,0.0); glVertex2d(0.0,0.0);
-        glTexCoord2d(1.0,0.0); glVertex2d(256.0,0.0);
-        glTexCoord2d(1.0,1.0); glVertex2d(256.0,240.0);
-        glTexCoord2d(0.0,1.0); glVertex2d(0.0,240.0);
-        glEnd();
-      break;
-      
-      case ID_VIDEO_EAGLE512X480:
-        ScaleImageEagle2X(nes.frame_buffer,256,240,output);
-        glBindTexture( GL_TEXTURE_2D, texture );
-        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,512,480,0,GL_BGRA_EXT,GL_UNSIGNED_BYTE,output);
-        glBegin( GL_QUADS );
-        glTexCoord2d(0.0,0.0); glVertex2d(0.0,0.0);
-        glTexCoord2d(1.0,0.0); glVertex2d(256.0*2,0.0);
-        glTexCoord2d(1.0,1.0); glVertex2d(256.0*2,240.0*2);
-        glTexCoord2d(0.0,1.0); glVertex2d(0.0,240.0*2);
-        glEnd();
-        //hq2x_filter_render(output,256,nes.frame_buffer,256,256,240);
-        //glDrawPixels(512,480,GL_BGRA_EXT,GL_UNSIGNED_BYTE,output);
-      break;
-    }
-
-    gfx.Render();
-    timing.render_time_span = 0;
-    ++timing.fps_counter;
+    //InvalidateRect(handle(),nullptr,true);
+    PostMessage(handle(),WM_PAINT,0,0);
   });
 
   nes.set_on_vertical_blank([this]() {
@@ -89,7 +62,8 @@ void DisplayWindow::Init() {
   glBindTexture( GL_TEXTURE_2D, texture );
   glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
   glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-  
+  //wglMakeCurrent(NULL, NULL);
+
   //settings setup
   options.nes = &nes;
   IO::window_handle = handle();
@@ -103,7 +77,7 @@ void DisplayWindow::Init() {
   
   
 
- //nes.Open("D:\\Personal\\Projects\\NesEmu\\mario.nes");
+  nes.Open("D:\\Personal\\Projects\\NesEmu\\mario.nes");
 
   //CPU Tests
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\cpu_reset\\ram_after_reset.nes");
@@ -132,7 +106,8 @@ void DisplayWindow::Init() {
 
   //MMC3
   //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\mmc3_irq_tests\\1.Clocking.nes");
-  nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\mmc3_test_2\\rom_singles\\1-clocking.nes");
+  //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\mmc3_test_2\\rom_singles\\1-clocking.nes");
+  //nes.Open("D:\\Personal\\Projects\\NesEmu\\testroms\\mmc3_test_2\\rom_singles\\2-details.nes");
   //nes.Open("F:\\NESRen\\Pirate\\Captain Tsubasa Vol 2 - Super Striker (J) [p1].nes");
 
   //PPU
@@ -143,6 +118,9 @@ void DisplayWindow::Init() {
   //nes.Open("F:\\NESRen\\USA\\Legend of Zelda, The (U) (PRG 0).nes");
   //nes.Open("F:\\NESRen\\Translated\\Captain Tsubasa (J) [T-Eng].nes");
   OnCommand(ID_MODE_NTSC,0);
+
+  //emu_th = new std::thread(&app::DisplayWindow::Step,this);
+  //emu_th->join();
 }
 
 void DisplayWindow::ResetTiming() {
@@ -152,41 +130,44 @@ void DisplayWindow::ResetTiming() {
 }
 
 void DisplayWindow::Step() {
-  //if (nes.on == false) return;
-  const double dt =  1000.0 / nes.settings.cpu_freq_hz;//options.cpu_freq(); 0.00058f;//16.667f;
-  timing.current_cycles = timer.GetCurrentCycles();
-  double time_span =  (timing.current_cycles - timing.prev_cycles) * timer.resolution();
-  if (time_span > 250.0) //clamping time
-    time_span = 250.0;
+  //gfx.SwitchThread();
+  //while (exit_signal_ == false) {
 
-  timing.span_accumulator += time_span;
-  while (timing.span_accumulator >= dt) {
-    timing.span_accumulator -= nes.Step(dt);
-  }
+    //if (nes.on == false) return;
+    const double dt =  1000.0 / nes.settings.cpu_freq_hz;//options.cpu_freq(); 0.00058f;//16.667f;
+    timing.current_cycles = timer.GetCurrentCycles();
+    double time_span =  (timing.current_cycles - timing.prev_cycles) * timer.resolution();
+    if (time_span > 250.0) //clamping time
+      time_span = 250.0;
+
+    timing.span_accumulator += time_span;
+    while (timing.span_accumulator >= dt) {
+      timing.span_accumulator -= nes.Step(dt);
+    }
     
 
-  timing.total_cycles += timing.current_cycles-timing.prev_cycles;
-  timing.prev_cycles = timing.current_cycles;
+    timing.total_cycles += timing.current_cycles-timing.prev_cycles;
+    timing.prev_cycles = timing.current_cycles;
   
 
-  //timing.render_time_span += time_span;
-  //++timing.fps_counter;
-  timing.fps_time_span += time_span;
-  if (timing.fps_time_span >= 1000.0) {
-    timing.fps = timing.fps_counter;
-    timing.fps_counter = 0;
-    timing.fps_time_span = 0;
+    //timing.render_time_span += time_span;
+    //++timing.fps_counter;
+    timing.fps_time_span += time_span;
+    if (timing.fps_time_span >= 1000.0) {
+      timing.fps = timing.fps_counter;
+      timing.fps_counter = 0;
+      timing.fps_time_span = 0;
 
-    char caption[256];
-    //sprintf(caption,"Freq : %0.2f MHz",nes.frequency_mhz());
-    //sprintf(caption,"CPS: %llu ",nes.cycles_per_second());
+      char caption[256];
+      //sprintf(caption,"Freq : %0.2f MHz",nes.frequency_mhz());
+      //sprintf(caption,"CPS: %llu ",nes.cycles_per_second());
     
-    sprintf(caption,"FPS: %02d",timing.fps);
-    SetWindowText(handle(),caption);
+      sprintf(caption,"FPS: %02d",timing.fps);
+      SetWindowText(handle(),caption);
  
-  }
-
-
+    }
+    
+  //}
 }
 
 int DisplayWindow::OnCreate(WPARAM wParam,LPARAM lParam) {
@@ -194,11 +175,13 @@ int DisplayWindow::OnCreate(WPARAM wParam,LPARAM lParam) {
 }
 
 int DisplayWindow::OnDestroy(WPARAM wParam,LPARAM lParam) {
+  exit_signal_ = true;
+  PostQuitMessage(0);
+  //emu_th->
   IO::Deinit();
   glDeleteTextures(1,&texture);
   gfx.Deinitialize();
-  exit_signal_ = true;
-  PostQuitMessage(0);
+  
   return 0;
 }
 
@@ -320,4 +303,41 @@ int DisplayWindow::OnDropFiles(WPARAM wParam,LPARAM lParam) {
   return 0;
 }
 
+int DisplayWindow::OnPaint(WPARAM wParam,LPARAM lParam) {
+  switch(display_mode) {
+    case ID_VIDEO_STD256X240:
+      //glDrawPixels(256,240,GL_BGRA_EXT,GL_UNSIGNED_BYTE,nes.frame_buffer);
+      //glEnable(GL_TEXTURE_2D);
+      glBindTexture( GL_TEXTURE_2D, texture );
+      glTexImage2D(GL_TEXTURE_2D,0,4,256,240,0,GL_BGRA_EXT,GL_UNSIGNED_BYTE,nes.frame_buffer);
+      glBegin( GL_QUADS );
+      glTexCoord2d(0.0,0.0); glVertex2d(0.0,0.0);
+      glTexCoord2d(1.0,0.0); glVertex2d(256.0,0.0);
+      glTexCoord2d(1.0,1.0); glVertex2d(256.0,240.0);
+      glTexCoord2d(0.0,1.0); glVertex2d(0.0,240.0);
+      glEnd();
+    break;
+      
+    case ID_VIDEO_EAGLE512X480:
+      ScaleImageEagle2X(nes.frame_buffer,256,240,output);
+      glBindTexture( GL_TEXTURE_2D, texture );
+      glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,512,480,0,GL_BGRA_EXT,GL_UNSIGNED_BYTE,output);
+      glBegin( GL_QUADS );
+      glTexCoord2d(0.0,0.0); glVertex2d(0.0,0.0);
+      glTexCoord2d(1.0,0.0); glVertex2d(256.0*2,0.0);
+      glTexCoord2d(1.0,1.0); glVertex2d(256.0*2,240.0*2);
+      glTexCoord2d(0.0,1.0); glVertex2d(0.0,240.0*2);
+      glEnd();
+      //hq2x_filter_render(output,256,nes.frame_buffer,256,256,240);
+      //glDrawPixels(512,480,GL_BGRA_EXT,GL_UNSIGNED_BYTE,output);
+    break;
+  }
+
+  gfx.Render();
+  timing.render_time_span = 0;
+  ++timing.fps_counter;
+  return 0;
 }
+
+}
+
